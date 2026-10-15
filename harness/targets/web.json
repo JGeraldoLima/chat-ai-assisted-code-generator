@@ -1,0 +1,20 @@
+{
+  "$comment": "Target descriptor: everything target-specific the harness needs. Adding a target = adding one of these + a spec/platforms profile.",
+  "id": "web",
+  "project": "webclient",
+  "profile": "spec/platforms/web.md",
+  "skills": [".claude/skills/vite/SKILL.md"],
+  "generated": {
+    "include": ["src/"],
+    "exclude": []
+  },
+  "harnessOutputs": ["GENERATED.md", "TRACEABILITY.md", "CONFORMANCE.md"],
+  "tests": { "include": ["src/"], "pattern": "[.]test[.]tsx?$" },
+  "setup": [["npm", "ci", "--no-audit", "--no-fund"]],
+  "gates": [
+    { "name": "build", "cmd": ["npm", "run", "build"] },
+    { "name": "lint", "cmd": ["npm", "run", "lint"] },
+    { "name": "unit-tests", "cmd": ["npm", "test"] }
+  ],
+  "e2e": { "driver": "web", "requires": [] }
+}

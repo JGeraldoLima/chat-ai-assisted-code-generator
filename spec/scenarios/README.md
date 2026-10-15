@@ -46,6 +46,7 @@ plus slack. Everything else runs once and fails immediately on error.
 | `expectConnection` | `actor`, `status`, `queued?` | `connection-status` == `status`, and `queued-count` == `<queued> queued` if `queued` is given. |
 | `expectThread` | `actor`, `peer`, `messages` | `openThread(peer)`. The `message-row`s, in order, must equal `messages` exactly. Each item is `{from, body, status}`. An empty list means `thread-empty` is shown. |
 | `expectConversations` | `actor`, `peers`, `previews?` | Go to Conversations. The `conversation-peer` values, in order, must equal `peers`, and the `conversation-preview` values must equal `previews` if given. An empty `peers` list means `conversations-empty` is shown. |
+| `expectLastVisible` | `actor`, `peer`, `body` | `openThread(peer)`. The last `message-row` has `message-body` == `body` **and** is inside the visible viewport (auto-scroll). |
 | `expectScreen` | `actor`, `screen` | The current screen is `login`, `conversations` or `thread`. |
 | `logout` | `actor` | Go to Conversations and press `logout`. Expect Login. |
 | `expectServer` | `messages` | Server `GET /admin/api/state`: messages in seq order must equal the list exactly. Each item is `{from, to, body}`. |

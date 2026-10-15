@@ -1,0 +1,37 @@
+id: long-thread
+title: A thread longer than the screen stays scrolled to the newest message
+covers:
+  - REQ-UI-007
+  - REQ-UI-005
+  - REQ-OUTBOX-001
+actors:
+  alice: { name: Alice }
+  bob: { name: Bob }
+
+steps:
+  - reset: {}
+  - launch: { actor: alice }
+  - login: { actor: alice }
+  - launch: { actor: bob }
+  - login: { actor: bob }
+  - send: { actor: alice, to: Bob, body: "line 01" }
+  - send: { actor: alice, to: Bob, body: "line 02" }
+  - send: { actor: alice, to: Bob, body: "line 03" }
+  - send: { actor: alice, to: Bob, body: "line 04" }
+  - send: { actor: alice, to: Bob, body: "line 05" }
+  - send: { actor: alice, to: Bob, body: "line 06" }
+  - send: { actor: alice, to: Bob, body: "line 07" }
+  - send: { actor: alice, to: Bob, body: "line 08" }
+  - send: { actor: alice, to: Bob, body: "line 09" }
+  - send: { actor: alice, to: Bob, body: "line 10" }
+  - send: { actor: alice, to: Bob, body: "line 11" }
+  - send: { actor: alice, to: Bob, body: "line 12" }
+  - send: { actor: alice, to: Bob, body: "line 13" }
+  - send: { actor: alice, to: Bob, body: "line 14" }
+  - expectLastVisible: { actor: alice, peer: Bob, body: "line 14" }
+  # An incoming message also scrolls the open thread.
+  - send: { actor: bob, to: Alice, body: "that was a lot of lines" }
+  - expectLastVisible: { actor: alice, peer: Bob, body: "that was a lot of lines" }
+  # Re-opening the thread starts at the newest message.
+  - expectConversations: { actor: alice, peers: [Bob], previews: ["that was a lot of lines"] }
+  - expectLastVisible: { actor: alice, peer: Bob, body: "that was a lot of lines" }

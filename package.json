@@ -12,7 +12,8 @@
     "test:server": "npm --prefix server test",
     "conformance": "node --test \"conformance/*.test.mjs\"",
     "regen": "node harness/regen.mjs",
-    "e2e": "node e2e/runner.mjs"
+    "e2e": "node e2e/runner.mjs",
+    "test:harness": "node --test \"harness/test/*.test.mjs\""
   },
   "devDependencies": {
     "ajv": "8.20.0",

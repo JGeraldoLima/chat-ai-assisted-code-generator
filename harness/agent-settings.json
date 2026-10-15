@@ -1,0 +1,45 @@
+{
+  "$comment": "Permission profile for HEADLESS generation runs only (passed by harness/lib/agent.mjs via --settings). Interactive sessions use .claude/settings.json.",
+  "permissions": {
+    "allow": [
+      "Read",
+      "Glob",
+      "Grep",
+      "Bash(cd:*)",
+      "Bash(ls:*)",
+      "Bash(mkdir:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(npm run build:*)",
+      "Bash(npm run lint:*)",
+      "Bash(npm test:*)",
+      "Bash(npm --prefix webclient run:*)",
+      "Bash(npm --prefix webclient test:*)",
+      "Bash(npx vitest:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npx eslint:*)",
+      "Bash(./gradlew:*)",
+      "Bash(gradlew.bat:*)",
+      "Bash(cmd /c gradlew.bat:*)",
+      "Bash(node harness/regen.mjs:*)",
+      "Bash(node e2e/runner.mjs:*)"
+    ],
+    "deny": [
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(git -C * commit:*)",
+      "Bash(git -C * push:*)",
+      "Bash(git reset:*)",
+      "Bash(git checkout:*)",
+      "Bash(npm install:*)",
+      "Bash(npm i:*)",
+      "Bash(npm uninstall:*)",
+      "Bash(rm -rf:*)",
+      "Bash(curl:*)",
+      "Bash(wget:*)",
+      "WebFetch",
+      "WebSearch"
+    ]
+  }
+}
