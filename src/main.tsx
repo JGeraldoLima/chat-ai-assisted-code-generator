@@ -3,29 +3,18 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { App } from './App'
 import { SERVER_URL } from './config'
-import { PersistentStore } from './data/storage'
-import { SyncEngine } from './data/syncEngine'
-import { installWakeSources } from './data/wakeSources'
+import { ChatClient } from './data/client'
 import './styles.css'
 
-// One module-level store and engine per page (REQ-CONN-007).
-const store = new PersistentStore(window.localStorage)
-const engine = new SyncEngine({
-  fetchFn: (url, init) => fetch(url, init),
+/** The one module-level client and engine instance (spec/platforms/web.md, REQ-CONN-007). */
+const client = new ChatClient({
+  storage: window.localStorage,
+  fetchFn: (input, init) => fetch(input, init),
   baseUrl: SERVER_URL,
-  storage: store,
-  now: () => Date.now(),
-  randomUUID: () => crypto.randomUUID(),
 })
-installWakeSources(engine, window, document)
 
-// REQ-ID-001: with a persisted identity the engine starts right away (no-op otherwise).
-engine.start()
-
-const root = document.getElementById('root')
-if (!root) throw new Error('#root not found')
-createRoot(root).render(
+createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App store={store} engine={engine} />
+    <App client={client} />
   </StrictMode>,
 )

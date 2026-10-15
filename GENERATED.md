@@ -6,14 +6,14 @@
 | Field | Value |
 |---|---|
 | Regeneration boundary | `src/` |
-| Spec version / hash | 1.0.0 / `780413cc4e22` |
+| Spec version / hash | 1.1.0 / `2459a4cf87d0` |
 | Spec files | 17 (see `spec/manifest.yaml`) |
-| Harness | chatgen-harness 1.0.0 @ root `69d1d3d` |
-| Scaffold commit | `8662fca` |
+| Harness | chatgen-harness 1.0.0 @ root `cf83999` |
+| Scaffold commit | `410ad55` |
 | Agent | Claude Code, model `claude-opus-5-5`, effort `high` |
 | Repair attempts | 0 |
-| Review | violations=0 unclear=6 ok=43 |
+| Review | violations=0 unclear=1 ok=48 |
 | Gates (last run) | boundary ✅ · traceability ✅ · build ✅ · lint ✅ · unit-tests ✅ |
-| Generated at | 2026-10-15T15:25:02.220Z |
+| Generated at | 2026-10-15T23:28:39.375Z |
 
 To regenerate: `node harness/regen.mjs web` from the repo root (see root README).
