@@ -1,0 +1,9 @@
+[submodule "server"]
+	path = server
+	url = ./server
+[submodule "webclient"]
+	path = webclient
+	url = ./webclient
+[submodule "client"]
+	path = client
+	url = ./client

@@ -1,0 +1,9 @@
+node_modules/
+harness/runs/
+e2e/artifacts/
+test-results/
+playwright-report/
+*.log
+.DS_Store
+.env*
+!.env.example
