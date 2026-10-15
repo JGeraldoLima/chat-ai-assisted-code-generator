@@ -116,15 +116,23 @@ export async function createAndroidDriver({ serial } = {}) {
    * holds exactly `text`.
    */
   async function typeInto(id, text) {
+    const typeChunks = async (s) => {
+      for (let i = 0; i < s.length; i += 80) await adb('shell', 'input', 'text', shellText(s.slice(i, i + 80)));
+    };
     for (let attempt = 1; attempt <= 3; attempt++) {
       await tap(id);
       await stable(id); // keyboard shown, layout settled
       await adb('shell', 'input', 'keycombination', '113', '29').catch(() => {}); // Ctrl+A
       await adb('shell', 'input', 'keyevent', '67'); // Del
-      for (let i = 0; i < text.length; i += 80) {
-        await adb('shell', 'input', 'text', shellText(text.slice(i, i + 80)));
+      await typeChunks(text);
+      // Self-correct: if characters were dropped but what arrived is a prefix, append the remainder.
+      for (let fix = 0; fix < 5; fix++) {
+        const current = await fieldText(id);
+        if (current === text) return;
+        if (!text.startsWith(current)) break; // garbled: clear and retype
+        await adb('shell', 'input', 'keyevent', '123'); // move cursor to end
+        await typeChunks(text.slice(current.length));
       }
-      if ((await fieldText(id)) === text) return;
     }
     throw new Error(`could not type ${text.length} chars into "${id}" (field holds ${JSON.stringify((await fieldText(id)).slice(0, 40))}…)`);
   }

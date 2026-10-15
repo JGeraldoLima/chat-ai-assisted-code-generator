@@ -22,6 +22,15 @@ What I'd do next with more time, roughly in priority order.
 
 ## Spec / protocol
 
+0. **Spec v1.1 from the reviewers' findings.** Resolve the "unclear" items in `webclient/CONFORMANCE.md` and
+   `client/CONFORMANCE.md`:
+   - `failed` vs the server copy after a 409;
+   - classifying other 4xx statuses on POST and GET;
+   - the REQ-SYNC-001 prose vs its pseudocode;
+   - Unicode White_Space vs platform `trim()`;
+   - the cross-key atomicity of a send.
+
+   Then regenerate both clients.
 1. **Enable `features/reactions.md`**, then attachments (a `kind: "attachment"` with an upload endpoint) and group
    conversations (`to` becomes a conversation id, with membership rules), each as a feature module with its own
    scenarios.
