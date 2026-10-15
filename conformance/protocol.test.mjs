@@ -100,6 +100,24 @@ test('REQ-PROTO-010 / REQ-PROTO-003 validation codes, in order', async () => {
   assert.equal(ok.status, 201, '1000 code points + unknown fields are accepted (REQ-PROTO-004)');
 });
 
+test('REQ-PROTO-010 blank body uses exactly the glossary whitespace set', async () => {
+  // The 25 glossary code points: each alone (and all together) is blank.
+  const ws = [0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x20, 0xa0, 0x1680, ...Array.from({ length: 11 }, (_, i) => 0x2000 + i),
+    0x2028, 0x2029, 0x202f, 0x205f, 0x3000, 0xfeff].map((c) => String.fromCodePoint(c));
+  assert.equal(ws.length, 25);
+  for (const body of [...ws, ws.join('')]) {
+    const r = await api.send('Alice', newMessage('Alice', 'Bob', body));
+    assert.equal(r.status, 400, `U+${body.codePointAt(0).toString(16)} must be blank`);
+    assert.equal(r.json.error.code, 'invalid_body');
+  }
+  // Not in the set (U+0085 is Unicode White_Space but not glossary whitespace; U+200B, U+180E are not either).
+  for (const body of ['\u0085', '​', '᠎', '\u001c']) {
+    const r = await api.send('Alice', newMessage('Alice', 'Bob', body));
+    assert.equal(r.status, 201, `U+${body.codePointAt(0).toString(16)} is not whitespace`);
+    assert.equal(r.json.body, body, 'stored verbatim');
+  }
+});
+
 test('REQ-PROTO-021 sync returns only my messages after the cursor, ordered, schema-valid', async () => {
   await api.send('Alice', newMessage('Alice', 'Bob', 'a1'));
   await api.send('Carol', newMessage('Carol', 'Dave', 'not yours'));
