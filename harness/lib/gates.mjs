@@ -5,10 +5,12 @@ import { join } from 'node:path';
 import { childEnv } from './paths.mjs';
 import { generatedFiles, isGenerated, isHarnessOutput, resolveCmd } from './target.mjs';
 import { extractRequirements, scenarioCoverage } from './spec.mjs';
+import { scaffoldDrift } from './scaffold.mjs';
 
 /** Runs a command, streaming to a log file; resolves {ok, code, tail}. */
 export function runCommand(cmd, { cwd, logFile, timeoutMs = 20 * 60_000 }) {
-  const [bin, ...args] = resolveCmd(cmd);
+  const [rawBin, ...args] = resolveCmd(cmd, cwd);
+  const bin = process.platform === 'win32' && /\s/.test(rawBin) ? `"${rawBin}"` : rawBin;
   return new Promise((resolve) => {
     const child = spawn(bin, args, { cwd, env: childEnv(), shell: process.platform === 'win32' });
     let out = '';
@@ -50,6 +52,11 @@ export function changedPaths(projectDir) {
 /** Boundary gate: nothing outside the generated roots (and harness outputs) may differ from HEAD. */
 export function boundaryGate(target) {
   const violations = changedPaths(target.projectDir).filter((p) => !isGenerated(target, p) && !isHarnessOutput(target, p));
+  if (target.scaffold) {
+    // The scaffold must also equal its template (harness/scaffolds/<target>), the single source of truth.
+    const { changed, extra } = scaffoldDrift(target);
+    violations.push(...changed.map((p) => `${p} (differs from ${target.scaffold})`), ...extra.map((p) => `${p} (not in ${target.scaffold})`));
+  }
   return {
     name: 'boundary',
     ok: violations.length === 0,

@@ -37,10 +37,10 @@ export function runAgent(prompt, { logFile, label = 'agent', onEvent, target } =
   return new Promise((resolve) => {
     // CHATGEN_GENERATING arms .claude/hooks/guard-boundary.mjs for this target.
     const env = agentEnv(childEnv(target ? { CHATGEN_GENERATING: target } : {}));
-    const child = spawn('claude', args, { cwd: ROOT, env, shell: false });
+    const child = spawn('claude', args, { cwd: ROOT, env, shell: false, stdio: ['ignore', 'pipe', 'pipe'] });
     const log = logFile ? createWriteStream(logFile) : null;
     let buf = '';
-    let final = { result: '', costUsd: undefined, turns: undefined, isError: false };
+    let final = { result: '', costUsd: undefined, turns: undefined, isError: false, rateLimited: false };
     child.stdout.setEncoding('utf8');
     child.stdout.on('data', (chunk) => {
       log?.write(chunk);
@@ -53,7 +53,14 @@ export function runAgent(prompt, { logFile, label = 'agent', onEvent, target } =
         try { ev = JSON.parse(line); } catch { continue; }
         onEvent?.(ev, label);
         if (ev.type === 'result') {
-          final = { result: ev.result ?? '', costUsd: ev.total_cost_usd, turns: ev.num_turns, isError: !!ev.is_error };
+          final = {
+            result: ev.result ?? '',
+            costUsd: ev.total_cost_usd,
+            turns: ev.num_turns,
+            isError: !!ev.is_error,
+            // Usage/session limits: retrying is pointless until the limit resets.
+            rateLimited: ev.api_error_status === 429,
+          };
         }
       }
     });

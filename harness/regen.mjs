@@ -8,6 +8,7 @@
 //   --no-clean       generate on top of the existing code (default: clean first)
 //   --no-review      skip the spec-conformance review
 //   --max-repairs N  repair attempts after failed gates/review (default 3)
+//   --sync-scaffold  re-apply harness/scaffolds/<target> to the project and commit it (after editing a template)
 //
 // Environment: CHATGEN_MODEL (default claude-opus-5-5), CHATGEN_EFFORT (default high), CHATGEN_MAX_BUDGET_USD.
 import { mkdirSync, writeFileSync, readFileSync, existsSync, rmSync, cpSync } from 'node:fs';
@@ -16,6 +17,7 @@ import { spawnSync } from 'node:child_process';
 import { ROOT, RUNS_DIR } from './lib/paths.mjs';
 import { composeBundle } from './lib/spec.mjs';
 import { listTargets, loadTarget, cleanGenerated, generatedFiles, isGenerated, isHarnessOutput } from './lib/target.mjs';
+import { needsBootstrap, applyScaffold, scaffoldDrift } from './lib/scaffold.mjs';
 import { boundaryGate, traceabilityGate, commandGates, changedPaths, runCommand } from './lib/gates.mjs';
 import { runAgent, describeEvent, AGENT_DEFAULTS } from './lib/agent.mjs';
 
@@ -41,6 +43,7 @@ const options = {
   clean: !flag('--no-clean'),
   review: !flag('--no-review'),
   maxRepairs: Number(opt('--max-repairs', 3)),
+  syncScaffold: flag('--sync-scaffold'),
 };
 
 const targets = which === 'all' ? listTargets() : [which];
@@ -76,7 +79,24 @@ async function regenerate(target) {
   };
   say(`spec ${bundle.manifest.specVersion} · hash ${bundle.shortHash} · ${bundle.files.length} files → ${toRel(bundlePath)}`);
 
-  // 2. Preflight: scaffold must be clean (it is human-owned; the boundary gate compares against HEAD).
+  // 2. Scaffold: bootstrap a project from scratch, or re-sync it, from harness/scaffolds/<target>.
+  if (target.scaffold) {
+    if (needsBootstrap(target)) {
+      say(`${target.project}/ has no scaffold: bootstrapping from ${target.scaffold}`);
+      say(applyScaffold(target, { reason: 'bootstrap' }));
+    } else if (options.syncScaffold) {
+      say(applyScaffold(target, { reason: 'sync' }));
+    } else {
+      const { changed, extra } = scaffoldDrift(target);
+      if (changed.length || extra.length) {
+        say(`ABORT: ${target.project}/ scaffold differs from ${target.scaffold}:\n  ${[...changed, ...extra.map((e) => `${e} (not in template)`)].join('\n  ')}\n` +
+          '  Edit the template (it is the source of truth) and re-run with --sync-scaffold.');
+        return false;
+      }
+    }
+  }
+
+  // Preflight: scaffold must be committed (the boundary gate compares against HEAD).
   const dirtyScaffold = changedPaths(target.projectDir).filter((p) => !isGenerated(target, p) && !isHarnessOutput(target, p));
   if (dirtyScaffold.length) {
     say(`ABORT: uncommitted scaffold changes in ${target.project}/ (commit them first):\n  ${dirtyScaffold.join('\n  ')}`);
@@ -108,6 +128,7 @@ async function regenerate(target) {
     const r = await agentStep(fill(read('harness/prompts/generate.md'), vars), 'generate');
     writeFileSync(join(runDir, 'generate-summary.md'), r.result ?? '');
     if (!r.ok) {
+      if (r.rateLimited) say('ABORT: Claude usage limit reached. Re-run after it resets (add --no-clean to keep the partial output).');
       say(`generator failed (exit ${r.code}): ${String(r.result).slice(0, 500)}`);
       return false;
     }
@@ -144,6 +165,12 @@ async function regenerate(target) {
     attempt++;
     say(`repair attempt ${attempt}/${options.maxRepairs}…`);
     const r = await agentStep(fill(read('harness/prompts/repair.md'), { ...vars, attempt: String(attempt), failures: failureText }), `repair-${attempt}`);
+    if (r.rateLimited) {
+      say(`ABORT: Claude usage limit reached during repair: ${String(r.result).slice(0, 200)}
+  Re-run later with: node harness/regen.mjs ${target.id} --no-clean`);
+      writeStamp(target, bundle, meta, false);
+      return false;
+    }
     if (!r.ok) say(`repair agent exited with ${r.code}; re-running gates anyway`);
     if (options.review && meta.review?.violations > 0) reviewed = false; // re-review after fixing violations
   }

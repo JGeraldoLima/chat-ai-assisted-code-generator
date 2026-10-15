@@ -2,6 +2,13 @@
   "$comment": "Target descriptor: everything target-specific the harness needs. Adding a target = adding one of these + a spec/platforms profile.",
   "id": "android",
   "project": "client",
+  "scaffold": "harness/scaffolds/android",
+  "bootstrapFiles": [
+    {
+      "path": "local.properties",
+      "content": "# Machine-local, written by harness bootstrap (gitignored).\nsdk.dir={ANDROID_SDK}\n"
+    }
+  ],
   "profile": "spec/platforms/android.md",
   "skills": [
     ".claude/skills/staff-android-engineer/SKILL.md",
@@ -13,14 +20,44 @@
       "app/src/test/",
       "app/src/androidTest/"
     ],
-    "exclude": ["app/src/main/java/com/example/chatclient/ui/theme/"]
+    "exclude": [
+      "app/src/main/java/com/example/chatclient/ui/theme/"
+    ]
   },
-  "harnessOutputs": ["GENERATED.md", "TRACEABILITY.md", "CONFORMANCE.md"],
-  "tests": { "include": ["app/src/test/"], "pattern": "[.]kt$" },
+  "harnessOutputs": [
+    "GENERATED.md",
+    "TRACEABILITY.md",
+    "CONFORMANCE.md"
+  ],
+  "tests": {
+    "include": [
+      "app/src/test/"
+    ],
+    "pattern": "[.]kt$"
+  },
   "setup": [],
   "gates": [
-    { "name": "build", "cmd": ["{gradlew}", "assembleDebug", "--console=plain"] },
-    { "name": "unit-tests", "cmd": ["{gradlew}", "testDebugUnitTest", "--console=plain"] }
+    {
+      "name": "build",
+      "cmd": [
+        "{gradlew}",
+        "assembleDebug",
+        "--console=plain"
+      ]
+    },
+    {
+      "name": "unit-tests",
+      "cmd": [
+        "{gradlew}",
+        "testDebugUnitTest",
+        "--console=plain"
+      ]
+    }
   ],
-  "e2e": { "driver": "android", "requires": ["emulator"] }
+  "e2e": {
+    "driver": "android",
+    "requires": [
+      "emulator"
+    ]
+  }
 }

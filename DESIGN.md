@@ -72,7 +72,10 @@ Android client) is the example it is evaluated on.
    (build files, dependency catalog, manifest, configs, theme) and generated roots. The boundary is
    data in `harness/targets/<target>.json`. It's enforced twice: a PreToolUse hook blocks writes
    outside it during harness runs, and a `git status` gate rejects any scaffold change. The scaffold's
-   dependency list *is* the allowlist, which keeps messaging SDKs out structurally.
+   dependency list *is* the allowlist, which keeps messaging SDKs out structurally. The scaffold itself is a
+   versioned template (`harness/scaffolds/<target>/`), applied without any LLM involvement. That's how a
+   client is generated **from scratch**: an empty folder gets the template, then the agent writes the app.
+   Drift between a project and its template fails the boundary gate.
 
 8. **The harness is target-agnostic and feature-agnostic.** No harness code mentions web or
    Android. A target is a JSON descriptor plus a platform profile. A feature is a spec module listed

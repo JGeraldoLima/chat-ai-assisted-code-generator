@@ -61,6 +61,47 @@ test('guard hook blocks edits outside the boundary only during harness runs', ()
   assert.equal(hook(null, 'spec/core/50-ui.md'), 0, 'humans are not restricted');
 });
 
+test('scaffold bootstrap: an empty directory becomes a committed project equal to the template', async () => {
+  const { mkdtempSync, writeFileSync, existsSync, readFileSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { spawnSync } = await import('node:child_process');
+  const { needsBootstrap, applyScaffold, scaffoldDrift, templateFiles } = await import('../lib/scaffold.mjs');
+  for (const id of listTargets()) {
+    const target = { ...loadTarget(id), projectDir: mkdtempSync(join(tmpdir(), `chatgen-${id}-`)) };
+    try {
+      assert.equal(needsBootstrap(target), true, `${id}: empty dir needs bootstrap`);
+      const msg = applyScaffold(target, { reason: 'bootstrap' });
+      assert.match(msg, /committed scaffold/, id);
+      assert.equal(needsBootstrap(target), false);
+      assert.deepEqual(scaffoldDrift(target), { changed: [], extra: [] }, `${id}: no drift right after bootstrap`);
+      const log = spawnSync('git', ['log', '--format=%s'], { cwd: target.projectDir, encoding: 'utf8' }).stdout;
+      assert.match(log, /^scaffold: bootstrap from harness\/scaffolds\//, id);
+      for (const f of target.bootstrapFiles ?? []) {
+        assert.ok(existsSync(join(target.projectDir, f.path)), `${id}: ${f.path} written`);
+        assert.doesNotMatch(readFileSync(join(target.projectDir, f.path), 'utf8'), /\{ANDROID_SDK\}/);
+      }
+      assert.match(applyScaffold(target, { reason: 'sync' }), /already matches/, `${id}: re-sync is a no-op`);
+
+      // Drift: editing a template-owned file or committing a stray file is detected.
+      const first = templateFiles(target).find((f) => /\.(json|kts|toml|md)$/.test(f));
+      writeFileSync(join(target.projectDir, first), 'tampered\n');
+      writeFileSync(join(target.projectDir, 'stray.txt'), 'x');
+      spawnSync('git', ['add', 'stray.txt'], { cwd: target.projectDir });
+      const drift = scaffoldDrift(target);
+      assert.deepEqual(drift.changed, [first]);
+      assert.deepEqual(drift.extra, ['stray.txt']);
+    } finally {
+      rmSync(target.projectDir, { recursive: true, force: true });
+    }
+  }
+});
+
+test('gate commands resolve the Gradle wrapper to an absolute path', async () => {
+  const { resolveCmd } = await import('../lib/target.mjs');
+  const [bin] = resolveCmd(['{gradlew}', 'assembleDebug'], join(ROOT, 'client'));
+  assert.equal(bin, join(ROOT, 'client', process.platform === 'win32' ? 'gradlew.bat' : 'gradlew'));
+});
+
 test('spec composition is deterministic and per-target', () => {
   const a = composeBundle('web');
   const b = composeBundle('web');

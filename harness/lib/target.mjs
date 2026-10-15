@@ -71,7 +71,13 @@ export function cleanGenerated(target) {
   return files.length;
 }
 
-/** Resolves command placeholders ({gradlew}) for the current OS. */
-export function resolveCmd(cmd) {
-  return cmd.map((c) => (c === '{gradlew}' ? (process.platform === 'win32' ? 'gradlew.bat' : './gradlew') : c));
+/**
+ * Resolves command placeholders for the current OS. `{gradlew}` becomes an *absolute* path to the
+ * project's wrapper: Claude Code (and hardened shells) set NoDefaultCurrentDirectoryInExePath, so
+ * Windows cmd will not run `gradlew.bat` from the working directory by bare name.
+ */
+export function resolveCmd(cmd, projectDir) {
+  return cmd.map((c) =>
+    c === '{gradlew}' ? join(projectDir ?? '.', process.platform === 'win32' ? 'gradlew.bat' : 'gradlew') : c,
+  );
 }

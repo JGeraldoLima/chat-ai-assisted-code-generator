@@ -1,4 +1,6 @@
-# Chat Generator: a spec-driven client generator
+# chat-ai-assisted-code-generator
+
+**Chat Generator**: a spec-driven client generator
 
 Chat Generator turns a written spec into working messaging clients (web + Android) using Claude Code.
 **The generator is the deliverable.** The messaging app is the example it's evaluated on.
@@ -21,14 +23,14 @@ Also: [`ATTRIBUTION.md`](ATTRIBUTION.md) (who or what wrote each artifact) and [
 
 ## Regeneration boundary
 
-| Repo | Generated (deleted and rewritten by the harness) | Human-owned scaffold |
+| Repo | Generated (deleted and rewritten by the harness) | Human-owned scaffold (source of truth: `harness/scaffolds/<target>/`) |
 |---|---|---|
 | `webclient/` | `src/**` | `package.json` + lockfile, `index.html`, `vite.config.ts`, `tsconfig*.json`, `.oxlintrc.json`, `public/` |
 | `client/` | `app/src/main/java/com/example/chatclient/**` **except** `ui/theme/**`; `app/src/test/**`; `app/src/androidTest/**` | Gradle files, `gradle/libs.versions.toml` (= dependency allowlist), `AndroidManifest.xml`, `res/`, `ui/theme/` |
 | `server/` | nothing | everything (hand-directed) |
 | root | nothing | everything |
 
-The boundary is data ([`harness/targets/*.json`](harness/targets/)). It's enforced during generation by a hook, and after it by a `git status` gate.
+The boundary is data ([`harness/targets/*.json`](harness/targets/)). It's enforced during generation by a hook, and after it by a `git status` gate. The scaffold itself lives in versioned templates, [`harness/scaffolds/`](harness/scaffolds/). The harness **bootstraps a project from an empty (or deleted) folder** by applying the template, then generates the app code. The same gate fails if a project's scaffold drifts from its template.
 
 ## Prerequisites
 
@@ -54,6 +56,7 @@ node harness/regen.mjs all
 Each run does the following:
 
 1. Composes the spec bundle and hashes it.
+1. If the project folder is empty or missing, bootstraps it from `harness/scaffolds/<target>/` (Gradle wrapper, build files, manifest, resources, theme / Vite config, lockfile), as a `scaffold:` commit in that repo.
 2. Deletes the generated roots.
 3. Runs Claude Code headless with the `generate-client` skill: pinned model, project settings only, edit guard armed.
 4. Runs the gates: boundary, traceability, build, lint, unit tests. If any fail, it repairs (up to 3 times).

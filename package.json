@@ -1,5 +1,5 @@
 {
-  "name": "chatgen",
+  "name": "chat-ai-assisted-code-generator",
   "private": true,
   "description": "Chat Generator: spec-driven client generator (harness + spec + e2e). Projects live in submodules.",
   "type": "module",
