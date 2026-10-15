@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://chatgen.local/schemas/error.schema.json",
+  "title": "Error response body (any 4xx/5xx)",
+  "type": "object",
+  "required": ["error"],
+  "properties": {
+    "error": {
+      "type": "object",
+      "required": ["code", "message"],
+      "properties": {
+        "code": {
+          "type": "string",
+          "enum": [
+            "invalid_user", "invalid_json", "sender_mismatch", "invalid_id",
+            "unsupported_kind", "invalid_recipient", "self_message", "invalid_body",
+            "invalid_created_at", "id_conflict", "invalid_cursor", "invalid_wait",
+            "not_found", "internal"
+          ]
+        },
+        "message": { "type": "string" }
+      }
+    }
+  }
+}

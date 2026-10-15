@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://chatgen.local/schemas/defs.schema.json",
+  "title": "Shared definitions",
+  "$defs": {
+    "name": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,32}$",
+      "description": "Normalized user name (see core/10-identity.md, name rule). Case-sensitive."
+    },
+    "uuid": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "timestamp": {
+      "type": "string",
+      "pattern": "^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$",
+      "description": "UTC instant, exactly 3 fractional digits, 'Z' suffix."
+    },
+    "kind": {
+      "type": "string",
+      "minLength": 1,
+      "description": "'text' in v1. Features may add kinds; clients must tolerate unknown kinds (REQ-SYNC-004)."
+    },
+    "body": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Not blank, <= 1000 code points (code-point limit not expressible in JSON Schema; enforced per REQ-PROTO-010)."
+    }
+  }
+}

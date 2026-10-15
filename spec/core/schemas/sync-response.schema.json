@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://chatgen.local/schemas/sync-response.schema.json",
+  "title": "GET /v1/messages response body",
+  "type": "object",
+  "required": ["messages", "cursor", "hasMore"],
+  "properties": {
+    "messages": {
+      "type": "array",
+      "maxItems": 100,
+      "items": { "$ref": "message.schema.json" }
+    },
+    "cursor": { "type": "integer", "minimum": 0 },
+    "hasMore": { "type": "boolean" }
+  },
+  "additionalProperties": true
+}

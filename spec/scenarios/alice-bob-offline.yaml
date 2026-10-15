@@ -1,0 +1,149 @@
+id: alice-bob-offline
+title: The reference interop scenario from the brief (offline queueing on both sides)
+covers:
+  - REQ-ID-001
+  - REQ-ID-003
+  - REQ-SEND-002
+  - REQ-SEND-003
+  - REQ-SEND-004
+  - REQ-OUTBOX-001
+  - REQ-OUTBOX-002
+  - REQ-OUTBOX-003
+  - REQ-SYNC-002
+  - REQ-ORDER-001
+  - REQ-CONN-001
+  - REQ-CONN-002
+  - REQ-CONN-003
+  - REQ-CONN-004
+  - REQ-UI-001
+  - REQ-UI-002
+  - REQ-UI-003
+  - REQ-UI-004
+  - REQ-UI-005
+actors:
+  alice: { name: Alice }
+  bob: { name: Bob }
+
+steps:
+  # --- setup --------------------------------------------------------------
+  - reset: {}
+  - launch: { actor: alice }
+  - login: { actor: alice }
+  - launch: { actor: bob }
+  - login: { actor: bob }
+  - expectConnection: { actor: alice, status: online, queued: 0 }
+  - expectConnection: { actor: bob, status: online, queued: 0 }
+
+  # --- 1. Alice -> Bob ------------------------------------------------------
+  - send: { actor: alice, to: Bob, body: "Hi Bob, I have something important to tell you" }
+  - expectThread:
+      actor: alice
+      peer: Bob
+      messages:
+        - { from: Alice, body: "Hi Bob, I have something important to tell you", status: sent }
+  - expectThread:
+      actor: bob
+      peer: Alice
+      messages:
+        - { from: Alice, body: "Hi Bob, I have something important to tell you", status: received }
+
+  # --- 2. Bob -> Alice ------------------------------------------------------
+  - send: { actor: bob, to: Alice, body: "What is it?" }
+  - expectThread:
+      actor: bob
+      peer: Alice
+      messages:
+        - { from: Alice, body: "Hi Bob, I have something important to tell you", status: received }
+        - { from: Bob, body: "What is it?", status: sent }
+  - expectThread:
+      actor: alice
+      peer: Bob
+      messages:
+        - { from: Alice, body: "Hi Bob, I have something important to tell you", status: sent }
+        - { from: Bob, body: "What is it?", status: received }
+
+  # --- 3. Alice goes offline, queues a message ------------------------------
+  - network: { actor: alice, online: false }
+  - expectConnection: { actor: alice, status: offline, queued: 0 }
+  - send: { actor: alice, to: Bob, body: "I got the job offer!" }
+  - expectConnection: { actor: alice, status: offline, queued: 1 }
+  - expectThread:
+      actor: alice
+      peer: Bob
+      messages:
+        - { from: Alice, body: "Hi Bob, I have something important to tell you", status: sent }
+        - { from: Bob, body: "What is it?", status: received }
+        - { from: Alice, body: "I got the job offer!", status: queued }
+
+  # --- 4. Bob goes offline, queues a message --------------------------------
+  - network: { actor: bob, online: false }
+  - expectConnection: { actor: bob, status: offline, queued: 0 }
+  - send: { actor: bob, to: Alice, body: "Are you still there?" }
+  - expectConnection: { actor: bob, status: offline, queued: 1 }
+  - expectThread:
+      actor: bob
+      peer: Alice
+      messages:
+        - { from: Alice, body: "Hi Bob, I have something important to tell you", status: received }
+        - { from: Bob, body: "What is it?", status: sent }
+        - { from: Bob, body: "Are you still there?", status: queued }
+  - expectServer:
+      messages:
+        - { from: Alice, to: Bob, body: "Hi Bob, I have something important to tell you" }
+        - { from: Bob, to: Alice, body: "What is it?" }
+
+  # --- 5. Alice reconnects; her queued message reaches the server -----------
+  - network: { actor: alice, online: true }
+  - expectConnection: { actor: alice, status: online, queued: 0 }
+  - expectThread:
+      actor: alice
+      peer: Bob
+      messages:
+        - { from: Alice, body: "Hi Bob, I have something important to tell you", status: sent }
+        - { from: Bob, body: "What is it?", status: received }
+        - { from: Alice, body: "I got the job offer!", status: sent }
+  - expectServer:
+      messages:
+        - { from: Alice, to: Bob, body: "Hi Bob, I have something important to tell you" }
+        - { from: Bob, to: Alice, body: "What is it?" }
+        - { from: Alice, to: Bob, body: "I got the job offer!" }
+
+  # --- 6. Alice goes offline again -------------------------------------------
+  - network: { actor: alice, online: false }
+  - expectConnection: { actor: alice, status: offline, queued: 0 }
+
+  # --- 7. Bob reconnects: flushes his queued message, then receives Alice's --
+  - network: { actor: bob, online: true }
+  - expectConnection: { actor: bob, status: online, queued: 0 }
+  - expectThread:
+      actor: bob
+      peer: Alice
+      messages:
+        - { from: Alice, body: "Hi Bob, I have something important to tell you", status: received }
+        - { from: Bob, body: "What is it?", status: sent }
+        - { from: Alice, body: "I got the job offer!", status: received }
+        - { from: Bob, body: "Are you still there?", status: sent }
+  - expectServer:
+      messages:
+        - { from: Alice, to: Bob, body: "Hi Bob, I have something important to tell you" }
+        - { from: Bob, to: Alice, body: "What is it?" }
+        - { from: Alice, to: Bob, body: "I got the job offer!" }
+        - { from: Bob, to: Alice, body: "Are you still there?" }
+
+  # --- epilogue: Alice is still offline and hasn't seen Bob's message yet ---
+  - expectThread:
+      actor: alice
+      peer: Bob
+      messages:
+        - { from: Alice, body: "Hi Bob, I have something important to tell you", status: sent }
+        - { from: Bob, body: "What is it?", status: received }
+        - { from: Alice, body: "I got the job offer!", status: sent }
+  - network: { actor: alice, online: true }
+  - expectThread:
+      actor: alice
+      peer: Bob
+      messages:
+        - { from: Alice, body: "Hi Bob, I have something important to tell you", status: sent }
+        - { from: Bob, body: "What is it?", status: received }
+        - { from: Alice, body: "I got the job offer!", status: sent }
+        - { from: Bob, body: "Are you still there?", status: received }

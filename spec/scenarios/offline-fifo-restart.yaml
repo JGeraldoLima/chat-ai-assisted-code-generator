@@ -1,0 +1,81 @@
+id: offline-fifo-restart
+title: Queued messages survive an app restart and flush in FIFO order
+covers:
+  - REQ-OUTBOX-001
+  - REQ-OUTBOX-005
+  - REQ-PERSIST-001
+  - REQ-CONN-001
+  - REQ-CONN-002
+  - REQ-CONN-007
+  - REQ-ID-001
+  - REQ-UI-003
+actors:
+  alice: { name: Alice }
+  bob: { name: Bob }
+
+steps:
+  - reset: {}
+  - launch: { actor: alice }
+  - login: { actor: alice }
+  - launch: { actor: bob }
+  - login: { actor: bob }
+  - expectConnection: { actor: alice, status: online, queued: 0 }
+
+  - network: { actor: alice, online: false }
+  - expectConnection: { actor: alice, status: offline }
+  - send: { actor: alice, to: Bob, body: "one" }
+  - send: { actor: alice, to: Bob, body: "two" }
+  - send: { actor: alice, to: Bob, body: "three" }
+  - expectConnection: { actor: alice, status: offline, queued: 3 }
+  - expectThread:
+      actor: alice
+      peer: Bob
+      messages:
+        - { from: Alice, body: "one", status: queued }
+        - { from: Alice, body: "two", status: queued }
+        - { from: Alice, body: "three", status: queued }
+
+  # Restart while offline: identity, outbox and order persist (REQ-ID-001, REQ-OUTBOX-005).
+  - restart: { actor: alice }
+  - expectScreen: { actor: alice, screen: conversations }
+  - expectConnection: { actor: alice, status: offline, queued: 3 }
+  - expectThread:
+      actor: alice
+      peer: Bob
+      messages:
+        - { from: Alice, body: "one", status: queued }
+        - { from: Alice, body: "two", status: queued }
+        - { from: Alice, body: "three", status: queued }
+  - expectServer: { messages: [] }
+
+  - network: { actor: alice, online: true }
+  - expectConnection: { actor: alice, status: online, queued: 0 }
+  - expectThread:
+      actor: alice
+      peer: Bob
+      messages:
+        - { from: Alice, body: "one", status: sent }
+        - { from: Alice, body: "two", status: sent }
+        - { from: Alice, body: "three", status: sent }
+  - expectServer:
+      messages:
+        - { from: Alice, to: Bob, body: "one" }
+        - { from: Alice, to: Bob, body: "two" }
+        - { from: Alice, to: Bob, body: "three" }
+  - expectThread:
+      actor: bob
+      peer: Alice
+      messages:
+        - { from: Alice, body: "one", status: received }
+        - { from: Alice, body: "two", status: received }
+        - { from: Alice, body: "three", status: received }
+
+  # The receiver's store persists across restart too.
+  - restart: { actor: bob }
+  - expectThread:
+      actor: bob
+      peer: Alice
+      messages:
+        - { from: Alice, body: "one", status: received }
+        - { from: Alice, body: "two", status: received }
+        - { from: Alice, body: "three", status: received }

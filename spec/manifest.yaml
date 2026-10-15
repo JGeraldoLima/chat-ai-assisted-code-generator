@@ -1,0 +1,29 @@
+# Composition manifest. The harness concatenates these modules, in this order,
+# into the spec bundle handed to the generator. Its hash is stamped into GENERATED.md.
+specVersion: 1.0.0
+protocol: v1
+
+core:
+  - core/00-glossary.md
+  - core/10-identity.md
+  - core/20-protocol.md
+  - core/30-messaging.md
+  - core/40-connectivity.md
+  - core/50-ui.md
+
+schemas: core/schemas
+
+scenarios: scenarios
+
+features:
+  # Feature modules (features/<name>.md) composed after core, in this order.
+  enabled: []
+  # Drafts kept in the repo to show how the spec evolves; NOT composed.
+  draft:
+    - reactions
+
+targets:
+  web:
+    profile: platforms/web.md
+  android:
+    profile: platforms/android.md

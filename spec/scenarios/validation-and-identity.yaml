@@ -1,0 +1,70 @@
+id: validation-and-identity
+title: Input validation, name normalization, logout and history restore
+covers:
+  - REQ-ID-002
+  - REQ-ID-003
+  - REQ-ID-004
+  - REQ-ID-005
+  - REQ-SEND-001
+  - REQ-UI-002
+  - REQ-UI-006
+  - REQ-UI-008
+actors:
+  alice: { name: Alice }
+
+steps:
+  - reset: {}
+  - launch: { actor: alice }
+  - expectScreen: { actor: alice, screen: login }
+
+  - loginExpectError:
+      actor: alice
+      name: "   "
+      error: "Name must be 1-32 characters: letters, digits, '_' or '-'."
+  - loginExpectError:
+      actor: alice
+      name: "bad name!"
+      error: "Name must be 1-32 characters: letters, digits, '_' or '-'."
+  # Surrounding whitespace is trimmed; the stored identity is the normalized name.
+  - login: { actor: alice, name: "  Alice  " }
+
+  - openThreadExpectError:
+      actor: alice
+      peer: "Alice"
+      error: "You cannot message yourself."
+  - openThreadExpectError:
+      actor: alice
+      peer: "no spaces"
+      error: "Name must be 1-32 characters: letters, digits, '_' or '-'."
+
+  # A thread for a never-seen user can be opened and is empty.
+  - expectThread: { actor: alice, peer: Bob, messages: [] }
+
+  - sendExpectError:
+      actor: alice
+      to: Bob
+      body: "   "
+      error: "Message cannot be empty."
+  - sendExpectError:
+      actor: alice
+      to: Bob
+      body: { repeat: "x", count: 1001 }
+      error: "Message is too long (max 1000 characters)."
+
+  - send: { actor: alice, to: Bob, body: "hello" }
+  - expectThread:
+      actor: alice
+      peer: Bob
+      messages:
+        - { from: Alice, body: "hello", status: sent }
+  - expectConversations: { actor: alice, peers: [Bob], previews: ["hello"] }
+
+  # Logout wipes local state; logging in again restores history from the server.
+  - logout: { actor: alice }
+  - expectScreen: { actor: alice, screen: login }
+  - login: { actor: alice }
+  - expectThread:
+      actor: alice
+      peer: Bob
+      messages:
+        - { from: Alice, body: "hello", status: sent }

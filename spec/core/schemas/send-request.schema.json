@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://chatgen.local/schemas/send-request.schema.json",
+  "title": "POST /v1/messages request body",
+  "type": "object",
+  "required": ["id", "from", "to", "body", "createdAt"],
+  "properties": {
+    "id": { "$ref": "defs.schema.json#/$defs/uuid" },
+    "kind": { "$ref": "defs.schema.json#/$defs/kind", "default": "text" },
+    "from": { "$ref": "defs.schema.json#/$defs/name" },
+    "to": { "$ref": "defs.schema.json#/$defs/name" },
+    "body": { "$ref": "defs.schema.json#/$defs/body" },
+    "createdAt": { "$ref": "defs.schema.json#/$defs/timestamp" }
+  },
+  "additionalProperties": true
+}

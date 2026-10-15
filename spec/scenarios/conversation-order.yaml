@@ -1,0 +1,35 @@
+id: conversation-order
+title: Conversations are ordered by latest activity, newest first
+covers:
+  - REQ-ORDER-002
+  - REQ-SYNC-002
+  - REQ-UI-001
+  - REQ-UI-005
+actors:
+  alice: { name: Alice }
+  bob: { name: Bob }
+  carol: { name: Carol }
+
+steps:
+  - reset: {}
+  - launch: { actor: alice }
+  - login: { actor: alice }
+  - launch: { actor: bob }
+  - login: { actor: bob }
+  - launch: { actor: carol }
+  - login: { actor: carol }
+  - expectConversations: { actor: alice, peers: [] }
+
+  - send: { actor: bob, to: Alice, body: "from bob" }
+  - expectConversations: { actor: alice, peers: [Bob], previews: ["from bob"] }
+  - send: { actor: carol, to: Alice, body: "from carol" }
+  - expectConversations: { actor: alice, peers: [Carol, Bob], previews: ["from carol", "from bob"] }
+  - send: { actor: bob, to: Alice, body: "bob again" }
+  - expectConversations: { actor: alice, peers: [Bob, Carol], previews: ["bob again", "from carol"] }
+
+  - expectThread:
+      actor: alice
+      peer: Bob
+      messages:
+        - { from: Bob, body: "from bob", status: received }
+        - { from: Bob, body: "bob again", status: received }
