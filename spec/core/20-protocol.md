@@ -20,7 +20,7 @@ semantics.
 | `kind` | string | client | `"text"` in v1. Features may add kinds. |
 | `from` | string | client | Valid name. Equals the `X-Chat-User` header. |
 | `to` | string | client | Valid name, `to != from`. |
-| `body` | string | client | Not blank (contains at least one non-White_Space character), at most 1000 code points. Stored and delivered **verbatim** (not trimmed). |
+| `body` | string | client | Not blank (contains at least one code point outside the glossary's **whitespace** set), at most 1000 code points. Stored and delivered **verbatim** (not trimmed). |
 | `createdAt` | timestamp | client | Client clock at send time. |
 | `seq` | integer >= 1 | server | Global, strictly increasing, assigned once at first acceptance. |
 | `receivedAt` | timestamp | server | Server clock at first acceptance. |
@@ -43,7 +43,7 @@ Request body: `send-request.schema.json`, which holds `{id, kind?, from, to, bod
   - If `kind`, `from`, `to`, `body` and `createdAt` are all identical, respond **200** with the stored message, unchanged (idempotent retry).
   - Otherwise respond **409** `id_conflict`.
 - **REQ-PROTO-012** [server] Otherwise assign `seq` = previous max + 1 and `receivedAt` = now, store the message, wake matching long-polls (REQ-PROTO-022), and respond **201** with the stored message. The recipient does not need to have ever connected (store-and-forward).
-- **REQ-PROTO-013** [client] Clients MUST treat 200 and 201 identically, as an acknowledgement carrying the authoritative stored message.
+- **REQ-PROTO-013** [client] Clients MUST treat 200 and 201 identically, as an acknowledgement carrying the authoritative stored message. How a client classifies every other status, and a malformed body, is REQ-CONN-008.
 
 ## `GET /v1/messages?after=<seq>&wait=<seconds>`: sync
 

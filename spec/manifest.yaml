@@ -1,6 +1,6 @@
 # Composition manifest. The harness concatenates these modules, in this order,
 # into the spec bundle handed to the generator. Its hash is stamped into GENERATED.md.
-specVersion: 1.0.0
+specVersion: 1.1.0
 protocol: v1
 
 core:

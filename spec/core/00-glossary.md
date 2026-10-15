@@ -14,9 +14,10 @@
 | **Cursor** | The highest server `seq` the client has merged. Persisted. Starts at `0`. |
 | **Sync engine** | The single client component that performs all network I/O: outbox flush plus long-poll sync (see `40-connectivity.md`). |
 | **Flush** | Sending outbox messages to the server, head first, until the outbox is empty or a request fails. |
-| **Sync request** | One `GET /v1/messages` long-poll. |
-| **Online / Offline** | The client's connection state: whether its **most recent** request reached the server (see `REQ-CONN-001`). |
+| **Sync request** | One `GET /v1/messages`: a long-poll, or a probe with `wait=0` (see `REQ-SYNC-001`). |
+| **Online / Offline** | The client's connection state: whether its **most recent** completed request got an expected answer from the server (see `REQ-CONN-001` and `REQ-CONN-008`). |
 | **Wake** | A signal that interrupts the sync engine's waiting so it starts a new cycle immediately. |
 | **Network portal** | The server's `/admin` page and API, which simulate a user being offline by cutting that user's connections. |
 | **Code point** | A Unicode scalar value. All length limits count code points, not bytes or UTF-16 units. |
+| **Whitespace** | Exactly these 25 code points, and no others: U+0009–U+000D, U+0020, U+00A0, U+1680, U+2000–U+200A, U+2028, U+2029, U+202F, U+205F, U+3000, U+FEFF. This fixed set is used by the name rule (`10-identity.md`) and the body rule (`20-protocol.md`) on clients and the server. It is **not** the Unicode `White_Space` property: U+0085 is not whitespace here, and U+FEFF is. Platform "trim" or "is blank" functions MAY be used only if they match this set exactly (see each platform profile). |
 | **Timestamp** | A UTC instant serialized exactly as `YYYY-MM-DDTHH:mm:ss.sssZ` (always 3 fractional digits, always `Z`). Example: `2026-10-15T13:04:05.120Z`. |

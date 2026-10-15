@@ -25,12 +25,13 @@ behavior. When in doubt, `core/` wins.
 | Core concept | Web realization |
 |---|---|
 | Element ID (`50-ui.md`) | `data-testid="<id>"` on the element itself. Inputs are `<input>`; `composer-input` may be a `<textarea>`. Buttons are `<button>`. |
-| Persistence (REQ-PERSIST-001) | `localStorage` keys `chatgen.v1.identity` (string), `chatgen.v1.messages` (JSON array), `chatgen.v1.outbox` (JSON array of ids) and `chatgen.v1.cursor` (number). Every `setItem` is atomic. Write the message store **before** the outbox. Single-tab use is assumed. |
+| Persistence (REQ-PERSIST-001..003) | `localStorage` keys `chatgen.v1.identity` (string), `chatgen.v1.messages` (JSON array), `chatgen.v1.outbox` (JSON array of ids) and `chatgen.v1.cursor` (number). Each key is one persisted value, and every `setItem` is atomic. When an operation changes several keys, `setItem` the message store first, then the outbox, then the cursor (REQ-PERSIST-002). The load-time repair (REQ-PERSIST-003) is a pure domain function, run when the keys are read at startup, before the first render of persisted data and before the engine starts. Single-tab use is assumed. |
 | UUID | `crypto.randomUUID()` |
 | Timestamp | `new Date().toISOString()` (always ms precision with `Z`) |
 | Code-point length | `[...str].length` |
-| White_Space trim / blank test | `str.trim()`; blank ⇔ `str.trim() === ''` |
-| HTTP | `fetch`, with an `AbortController` per request for timeouts and wake-aborts. A `TypeError` from `fetch` is a network error. |
+| Whitespace trim / blank test (glossary, REQ-ID-006, REQ-SEND-005) | `str.trim()`; blank ⇔ `str.trim() === ''`. This is exact: ECMAScript `trim()` strips WhiteSpace ∪ LineTerminator, which is precisely the glossary's 25-code-point set (U+FEFF included, U+0085 excluded). Don't use `\s` regexes or hand-written lists. Tests cover the REQ-ID-006 / REQ-SEND-005 examples (U+3000, U+FEFF, U+0085, U+200B). |
+| HTTP | `fetch`, with an `AbortController` per request for timeouts and wake-aborts. A `TypeError` from `fetch` is a network error. The status is `response.status` after `fetch`'s default redirect handling. Read the body as text and `JSON.parse` it inside a `try`. A parse error or a body that is not well-formed (REQ-CONN-008) on 200/201 is a failure, not an exception that escapes the engine. |
+| Timeouts (REQ-CONN-006) | One timer per request, started just before `fetch` and cleared only after the body has been read: 10 s for POST, `(wait + 10)` s for GET. When it fires it aborts the request's `AbortController`, and the request is a failure. **Connect phase:** `fetch` does not expose connection establishment, so the web client has no separate connect bound. The total timer is the only bound, as REQ-CONN-006 allows. |
 | Wake: network available | `window` `online` event |
 | Wake: foreground | `document` `visibilitychange` → `visible` |
 | Engine lifetime | One module-level engine instance, started and stopped by the app shell according to identity (REQ-CONN-007). It must survive React StrictMode double-invocation: start is idempotent. |

@@ -25,7 +25,7 @@
     "body": {
       "type": "string",
       "minLength": 1,
-      "description": "Not blank, <= 1000 code points (code-point limit not expressible in JSON Schema; enforced per REQ-PROTO-010)."
+      "description": "Not blank (at least one code point outside the glossary whitespace set), <= 1000 code points (neither rule is expressible in JSON Schema; enforced per REQ-PROTO-010)."
     }
   }
 }

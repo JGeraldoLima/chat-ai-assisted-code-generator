@@ -8,6 +8,7 @@ is wrong. If the spec is silent or ambiguous, fix the spec, then regenerate.
 | Path | What it holds | Platform-specific? |
 |---|---|---|
 | `manifest.yaml` | Spec version, which modules are composed, enabled features, targets | no |
+| `CHANGELOG.md` | What changed in each spec version, and which finding it resolves. Not composed into the bundle | no |
 | `core/00-glossary.md` | Vocabulary used everywhere else | no |
 | `core/10-identity.md` | Login / logout / identity rules | no |
 | `core/20-protocol.md` | HTTP wire protocol (server + client obligations) and the network-simulation portal | no |
