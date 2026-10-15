@@ -4,7 +4,7 @@
 import { randomUUID } from 'node:crypto';
 import { SyncEngine } from './engine.mjs';
 import {
-  NAME_ERROR, SELF_ERROR, bodyError, conversations, displayBody, normalizeName, peerOf, threadOrder,
+  NAME_ERROR, SELF_ERROR, bodyError, conversations, displayBody, normalizeName, peerOf, repairOutbox, threadOrder,
 } from './domain.mjs';
 
 const emptyState = () => ({ identity: null, messages: {}, outbox: [], cursor: 0 });
@@ -33,6 +33,7 @@ export class ReferenceClient {
 
   #boot() {
     this.state = JSON.parse(this.disk);
+    if (repairOutbox(this.state)) this.#persist(); // REQ-PERSIST-003 (a no-op here: the disk blob is written atomically)
     this.ui = { screen: this.state.identity ? 'conversations' : 'login', loginError: null, newConvError: null, composerError: null, peer: null };
     this.engine = null;
     if (this.state.identity) this.#startEngine(); // REQ-ID-001

@@ -1,5 +1,5 @@
 // Reference sync engine: a literal transcription of the cycle in spec/core/40-connectivity.md.
-import { upsert } from './domain.mjs';
+import { isWellFormedMessage, isWellFormedSync, rejectionCode, upsert } from './domain.mjs';
 
 export const BACKOFF_MS = [1000, 2000, 4000, 8000];
 const POST_TIMEOUT_MS = 10_000;
@@ -65,10 +65,11 @@ export class SyncEngine {
             body: { id: head.id, kind: head.kind, from: head.from, to: head.to, body: head.body, createdAt: head.createdAt },
             timeoutMs: POST_TIMEOUT_MS,
           });
-          if (r.status === 200 || r.status === 201) {
+          // REQ-CONN-008: acknowledgement / rejection / failure
+          if ((r.status === 200 || r.status === 201) && isWellFormedMessage(r.json) && r.json.id === head.id) {
             upsert(this.state, r.json, this.me); // sets seq/receivedAt, status sent, dequeues
           } else if (r.status === 400 || r.status === 409) {
-            this.state.messages[head.id] = { ...head, status: 'failed', errorCode: r.json?.error?.code ?? null };
+            this.state.messages[head.id] = { ...head, status: 'failed', errorCode: rejectionCode(r.status, r.json) };
             this.state.outbox.shift();
           } else {
             throw new NetworkFailure(`POST ${r.status}`);
@@ -108,7 +109,7 @@ export class SyncEngine {
           controller.abort('wake'); // not a failure (REQ-CONN-005)
           continue;
         }
-        if (r.status !== 200) throw new NetworkFailure(`GET ${r.status}`);
+        if (r.status !== 200 || !isWellFormedSync(r.json)) throw new NetworkFailure(`GET ${r.status}`); // REQ-CONN-008
         for (const m of r.json.messages) upsert(this.state, m, this.me);
         this.state.cursor = r.json.cursor; // REQ-PROTO-023
         this.persist();

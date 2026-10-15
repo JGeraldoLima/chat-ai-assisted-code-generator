@@ -8,7 +8,9 @@ export const EMPTY_BODY_ERROR = 'Message cannot be empty.';
 export const LONG_BODY_ERROR = 'Message is too long (max 1000 characters).';
 export const UNSUPPORTED_BODY = 'Unsupported message';
 
-/** Name rule (10-identity): trim White_Space, then validate. Returns the normalized name or null. */
+// ECMAScript trim() strips exactly the glossary whitespace set (REQ-ID-006, REQ-SEND-005).
+
+/** Name rule (10-identity): trim glossary whitespace, then validate. Returns the normalized name or null. */
 export function normalizeName(raw) {
   const n = String(raw).trim();
   return NAME_RE.test(n) ? n : null;
@@ -51,9 +53,35 @@ export function conversations(messages, me) {
 
 /** REQ-SYNC-002: upsert a server message into the store; returns the stored local message. */
 export function upsert(store, server, me) {
+  const existing = store.messages[server.id];
+  if (existing?.status === 'failed') return existing; // REQ-SYNC-005: the local failed message wins
   const status = server.from === me ? 'sent' : 'received';
   const local = { ...store.messages[server.id], ...server, status, errorCode: null };
   store.messages[server.id] = local;
   store.outbox = store.outbox.filter((id) => id !== server.id);
   return local;
+}
+
+// REQ-CONN-008 "well-formed": required schema fields present with the right JSON types.
+const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+const isInt = (v) => Number.isInteger(v);
+export function isWellFormedMessage(m) {
+  return isObj(m) && isInt(m.seq) && ['id', 'kind', 'from', 'to', 'body', 'createdAt', 'receivedAt'].every((k) => typeof m[k] === 'string');
+}
+export function isWellFormedSync(r) {
+  return isObj(r) && Array.isArray(r.messages) && r.messages.every(isWellFormedMessage) && isInt(r.cursor) && typeof r.hasMore === 'boolean';
+}
+
+/** REQ-OUTBOX-006: the server's error.code, else http_<status>. */
+export const rejectionCode = (status, json) => (typeof json?.error?.code === 'string' ? json.error.code : `http_${status}`);
+
+/** REQ-PERSIST-003: restore "queued <=> in outbox" after load. Returns true if the outbox changed. */
+export function repairOutbox(state) {
+  const seen = new Set();
+  const outbox = state.outbox.filter((id) => state.messages[id]?.status === 'queued' && !seen.has(id) && seen.add(id));
+  const orphans = Object.values(state.messages).filter((m) => m.status === 'queued' && !seen.has(m.id)).sort(threadOrder);
+  outbox.push(...orphans.map((m) => m.id));
+  const changed = outbox.length !== state.outbox.length || outbox.some((id, i) => id !== state.outbox[i]);
+  state.outbox = outbox;
+  return changed;
 }
