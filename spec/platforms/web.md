@@ -7,8 +7,10 @@ behavior. When in doubt, `core/` wins.
 
 - Vite + React + TypeScript (`strict`), as pinned in `webclient/package.json`.
 - Runtime dependencies: **only** `react` and `react-dom`. No state, routing, HTTP, UUID, date or messaging libraries.
-- Test dependencies (already in the scaffold): `vitest`, `jsdom`, `@testing-library/react`.
-- The generator MUST NOT edit `package.json`, the lockfile, `index.html`, `vite.config.ts`, the `tsconfig*.json` files or `eslint.config.js`. If it needs something they don't provide, it stops and reports. It never works around the scaffold.
+- Test dependencies (already in the scaffold): `vitest`, `jsdom`, `@testing-library/react`, `@testing-library/dom`. Tests import APIs explicitly (`import { describe, it, expect, vi } from 'vitest'`); there are no globals.
+- Lint: `oxlint --deny-warnings` with the scaffold's `.oxlintrc.json` (React hooks rules). Warnings fail the gate.
+- TypeScript is strict-ish via `tsconfig.app.json`: `verbatimModuleSyntax` (use `import type` for types), `erasableSyntaxOnly` (no `enum`, no parameter properties, no namespaces), `noUnusedLocals`, `noUnusedParameters`. `vite/client` types are already included, so don't create `vite-env.d.ts`.
+- The generator MUST NOT edit `package.json`, the lockfile, `index.html`, `vite.config.ts`, the `tsconfig*.json` files, `.oxlintrc.json` or `public/`. If it needs something they don't provide, it stops and reports. It never works around the scaffold.
 
 ## Scaffold contract
 
