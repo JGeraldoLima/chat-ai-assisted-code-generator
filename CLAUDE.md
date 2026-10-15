@@ -6,7 +6,7 @@ This repo is a submodule of the Chat Generator root repo. Its application code i
 |---|---|---|
 | `src/**` | **generated** by chatgen-harness | Never hand-edit. Change `../spec/` and run `node harness/regen.mjs web` from the root. |
 | `GENERATED.md`, `TRACEABILITY.md`, `CONFORMANCE.md` | harness reports | Rewritten on every run |
-| everything else (`package.json`, lockfile, `index.html`, `vite.config.ts`, `tsconfig*.json`, `.oxlintrc.json`, `public/`) | human-owned scaffold | Change deliberately in a `scaffold:` commit, never during generation |
+| everything else (`package.json`, lockfile, `index.html`, `vite.config.ts`, `tsconfig*.json`, `.oxlintrc.json`, `public/`) | human-owned scaffold | **Source of truth: `../harness/scaffolds/web/`** in the root repo. Edit the template there, then `node harness/regen.mjs web --sync-scaffold`. Never edit here directly; the boundary gate fails on drift. Change deliberately in a `scaffold:` commit, never during generation |
 
 Behavior is defined by `../spec/core/*` (platform-neutral) and `../spec/platforms/web.md`
 (web mechanisms). Answer behavior questions from the spec, not from `src/`.

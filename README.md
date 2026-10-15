@@ -4,7 +4,8 @@ The Chat Generator web client: Vite + React + TypeScript.
 
 **Regeneration boundary:** `src/` is produced by the chatgen harness from the root
 repo's `spec/`. Don't edit it by hand. Everything else here is the human-owned
-toolchain scaffold.
+toolchain scaffold. It's applied from the root repo's `harness/scaffolds/web/` template,
+which the harness also uses to bootstrap this project from an empty folder.
 
 ```bash
 npm ci
