@@ -12,6 +12,8 @@ import { fileURLToPath } from 'node:url';
 import YAML from 'yaml';
 import { startServer, isServerUp } from '../tools/server-process.mjs';
 import { createReferenceDriver } from './drivers/reference.mjs';
+import { childEnv } from '../harness/lib/paths.mjs';
+import { resolveCmd } from '../harness/lib/target.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const SCENARIO_DIR = join(ROOT, 'spec', 'scenarios');
@@ -62,10 +64,11 @@ async function ensureWeb(serverUrl) {
 }
 
 async function installAndroid() {
-  const gradlew = process.platform === 'win32' ? 'gradlew.bat' : './gradlew';
+  // Absolute wrapper path: hardened shells (e.g. Claude Code) set NoDefaultCurrentDirectoryInExePath.
+  const [gradlew] = resolveCmd(['{gradlew}'], join(ROOT, 'client'));
   console.log('  installing Android app (gradlew installDebug)…');
   await new Promise((res, rej) => {
-    const p = spawn(gradlew, ['installDebug', '--console=plain'], { cwd: join(ROOT, 'client'), shell: process.platform === 'win32', stdio: 'inherit' });
+    const p = spawn(gradlew, ['installDebug', '--console=plain'], { cwd: join(ROOT, 'client'), env: childEnv(), shell: process.platform === 'win32', stdio: 'inherit' });
     p.on('exit', (c) => (c === 0 ? res() : rej(new Error('installDebug failed'))));
   });
 }

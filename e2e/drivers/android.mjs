@@ -63,6 +63,7 @@ function inputText(n) {
   return PLACEHOLDERS.has(t) ? '' : t;
 }
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const center = (n) => [Math.round((n.bounds[0] + n.bounds[2]) / 2), Math.round((n.bounds[1] + n.bounds[3]) / 2)];
 
 /** Text for `adb shell input text`: %s encodes spaces; single-quote for the device shell. */
@@ -92,13 +93,40 @@ export async function createAndroidDriver({ serial } = {}) {
     if (!n) throw new Error(`element "${id}" not found on screen`);
     return n;
   };
-  const tap = async (id) => adb('shell', 'input', 'tap', ...center(await need(id)).map(String));
+  /**
+   * Element whose bounds are identical in two consecutive dumps. Tapping on the first dump is unsafe
+   * while the IME slides in and `imePadding()` moves the layout: the tap lands on the keyboard instead.
+   */
+  async function stable(id) {
+    let prev = await need(id);
+    for (let i = 0; i < 12; i++) {
+      await sleep(250);
+      const cur = await need(id);
+      if (cur.bounds.join() === prev.bounds.join()) return cur;
+      prev = cur;
+    }
+    return prev;
+  }
+  const tap = async (id) => adb('shell', 'input', 'tap', ...center(await stable(id)).map(String));
+  const fieldText = async (id) => inputText(find(await dump(), id)) ?? '';
+
+  /**
+   * Types text into a field and verifies it arrived. `adb input text` silently drops characters when
+   * the IME isn't focused yet or the string is long, so type in chunks and retry until the field
+   * holds exactly `text`.
+   */
   async function typeInto(id, text) {
-    await tap(id);
-    // Select all + delete, then type.
-    await adb('shell', 'input', 'keycombination', '113', '29').catch(() => {});
-    await adb('shell', 'input', 'keyevent', '67');
-    if (text.length) await adb('shell', 'input', 'text', shellText(text));
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      await tap(id);
+      await stable(id); // keyboard shown, layout settled
+      await adb('shell', 'input', 'keycombination', '113', '29').catch(() => {}); // Ctrl+A
+      await adb('shell', 'input', 'keyevent', '67'); // Del
+      for (let i = 0; i < text.length; i += 80) {
+        await adb('shell', 'input', 'text', shellText(text.slice(i, i + 80)));
+      }
+      if ((await fieldText(id)) === text) return;
+    }
+    throw new Error(`could not type ${text.length} chars into "${id}" (field holds ${JSON.stringify((await fieldText(id)).slice(0, 40))}…)`);
   }
   const start = () => adb('shell', 'am', 'start', '-W', '-n', ACTIVITY);
 
