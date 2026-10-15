@@ -29,6 +29,9 @@ steps:
   - send: { actor: alice, to: Bob, body: "line 13" }
   - send: { actor: alice, to: Bob, body: "line 14" }
   - expectLastVisible: { actor: alice, peer: Bob, body: "line 14" }
+  # Wait until all of Alice's messages have a server seq; otherwise Bob's reply could be ordered
+  # between them (REQ-ORDER-001 orders by seq) and would legitimately not be last.
+  - expectConnection: { actor: alice, status: online, queued: 0 }
   # An incoming message also scrolls the open thread.
   - send: { actor: bob, to: Alice, body: "that was a lot of lines" }
   - expectLastVisible: { actor: alice, peer: Bob, body: "that was a lot of lines" }

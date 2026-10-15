@@ -9,6 +9,7 @@ cycle below is what makes the two clients behave identically.
 ```
 engine run (while logged in):
   failures := 0
+  probe    := true                          # REQ-SYNC-001: first sync of a run is a probe
   hasMore  := false
   loop:
     # Phase A: flush (REQ-OUTBOX-*)
@@ -19,15 +20,16 @@ engine run (while logged in):
       if r is 400/409: apply REQ-OUTBOX-004
       markOnline(); failures := 0
     # Phase B: one sync request (REQ-SYNC-*)
-    w := hasMore ? 0 : 25
+    w := (probe or hasMore) ? 0 : 25
     r := GET after=cursor wait=w            # timeout w + 10 s; may be aborted by wake
     if r was aborted by wake: continue loop # not a failure; state unchanged
     if r is network error / timeout / non-200: goto FAILED
-    merge r (REQ-SYNC-002/003); hasMore := r.hasMore
+    merge r (REQ-SYNC-002/003); hasMore := r.hasMore; probe := false
     markOnline(); failures := 0
     continue loop
   FAILED:
     markOffline()
+    probe := true                           # next sync after a failure is a probe
     sleep BACKOFF[min(failures, 3)]          # interruptible by wake
     failures := failures + 1
     continue loop
@@ -44,7 +46,7 @@ BACKOFF = [1 s, 2 s, 4 s, 8 s]
 - **REQ-CONN-004** [client] Any request that reaches the server and returns an HTTP response other than 5xx (including 400/409 to a POST) sets the state to `online` and resets `failures` to 0.
 - **REQ-CONN-005** [client] **Wake** interrupts the engine's current wait:
   - **During a backoff sleep:** the sleep ends immediately and a new cycle starts. `failures` is **not** reset.
-  - **During a Phase B long-poll:** the request is aborted client-side and a new cycle starts. The abort is **not** a failure, so the state is unchanged.
+  - **During a Phase B long-poll:** the request is aborted client-side and a new cycle starts **immediately**. The engine MUST NOT wait for the aborted request to settle; some HTTP stacks settle aborted requests late or never. The abort is **not** a failure, so the state is unchanged, and a response that arrives after the abort is discarded.
   - **During Phase A:** nothing happens. A message enqueued meanwhile is picked up by the running flush loop.
 
   Wake sources: a persisted send (REQ-SEND-004), the platform reporting that the network became available, and the app returning to the foreground.

@@ -39,7 +39,7 @@ A **local message** is a protocol message plus client bookkeeping:
   - `from`: me
   - `to`: the open thread's peer
   - `body`: the input text **verbatim**
-  - `createdAt`: now, as a timestamp
+  - `createdAt`: now, as a timestamp, but **strictly greater** than the `createdAt` of every message already in the store with `from == me`. If the clock gives an equal or earlier instant (same millisecond, or the clock moved back), use the previous maximum + 1 ms. This makes REQ-ORDER-001 reproduce creation order for unsent messages.
   - `status`: `queued`
   - `seq`, `receivedAt`, `errorCode`: `null`
 - **REQ-SEND-003** [client] The new message MUST be durably written to the message store **and** appended to the tail of the outbox before the UI reflects it. After the write, the client clears the input and hides `composer-error`.
@@ -55,9 +55,12 @@ A **local message** is a protocol message plus client bookkeeping:
 
 ## Sync merge
 
-- **REQ-SYNC-001** [client] A sync request is `GET /v1/messages?after=<cursor>&wait=<w>`:
-  - `w = 0` if the previous sync response in this engine run had `hasMore == true`.
-  - Otherwise `w = 25`.
+- **REQ-SYNC-001** [client] A sync request is `GET /v1/messages?after=<cursor>&wait=<w>`. `w = 0` (a *probe*: it returns immediately) if any of these holds:
+  - It is the first sync request of this engine run.
+  - The previous request of this engine run failed (REQ-CONN-003).
+  - The previous sync response had `hasMore == true`.
+
+  Otherwise `w = 25` (a long-poll). The probe rule lets a starting or reconnecting client learn within one round trip that it is `online`, instead of waiting out a long-poll.
 - **REQ-SYNC-002** [client] Each received message is **upserted** by `id`:
   - **Existing id:** set `seq`, `receivedAt` and the protocol fields from the server copy. Set status to `sent` if `from == me`, else `received`. If the id is in the outbox (its POST acknowledgement was lost), remove it from the outbox.
   - **New id:** insert it with status `sent` if `from == me`, else `received`.
