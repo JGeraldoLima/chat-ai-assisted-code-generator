@@ -1,0 +1,21 @@
+{
+  "name": "chatgen",
+  "private": true,
+  "description": "Chat Generator: spec-driven client generator (harness + spec + e2e). Projects live in submodules.",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "postinstall": "npm --prefix server ci --no-audit --no-fund",
+    "server": "npm --prefix server start",
+    "test:server": "npm --prefix server test",
+    "conformance": "node --test \"conformance/*.test.mjs\"",
+    "regen": "node harness/regen.mjs",
+    "e2e": "node e2e/runner.mjs"
+  },
+  "devDependencies": {
+    "ajv": "8.20.0",
+    "yaml": "2.9.1"
+  }
+}
