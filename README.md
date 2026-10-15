@@ -5,7 +5,7 @@ The Chat Generator Android client: Kotlin, Jetpack Compose, Material 3, MVVM wit
 **Regeneration boundary:** the Kotlin sources under `app/src/main/java/com/example/chatclient/`
 (except `ui/theme/`), plus `app/src/test/` and `app/src/androidTest/`, are produced by the chatgen
 harness from the root repo's `spec/`. Everything else (Gradle files, version catalog, manifest,
-resources, theme) is the human-owned scaffold.
+resources, theme) is the human-owned scaffold. It's applied from the root repo's `harness/scaffolds/android/` template, which the harness also uses to bootstrap this project from an empty folder.
 
 ```bash
 ./gradlew assembleDebug        # build

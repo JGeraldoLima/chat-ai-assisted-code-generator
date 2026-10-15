@@ -7,7 +7,7 @@ This repo is a submodule of the Chat Generator root repo. Its Kotlin application
 | `app/src/main/java/com/example/chatclient/**` (except `ui/theme/`) | **generated** by chatgen-harness | Never hand-edit. Change `../spec/` and run `node harness/regen.mjs android` from the root. |
 | `app/src/test/**`, `app/src/androidTest/**` | **generated** | Same |
 | `GENERATED.md`, `TRACEABILITY.md`, `CONFORMANCE.md` | harness reports | Rewritten on every run |
-| `app/src/main/java/com/example/chatclient/ui/theme/**`, `res/`, `AndroidManifest.xml`, `*.gradle.kts`, `gradle/` | human-owned scaffold | Change deliberately in a `scaffold:` commit, never during generation. `gradle/libs.versions.toml` is the dependency allowlist. |
+| `app/src/main/java/com/example/chatclient/ui/theme/**`, `res/`, `AndroidManifest.xml`, `*.gradle.kts`, `gradle/` | human-owned scaffold | **Source of truth: `../harness/scaffolds/android/`** in the root repo. Edit the template there, then `node harness/regen.mjs android --sync-scaffold`. Never edit here directly; the boundary gate fails on drift. Change deliberately in a `scaffold:` commit, never during generation. `gradle/libs.versions.toml` is the dependency allowlist. |
 
 Behavior is defined by `../spec/core/*` (platform-neutral) and `../spec/platforms/android.md`
 (Android mechanisms, MVVM + light Clean architecture). Answer behavior questions from the spec, not from the code.
