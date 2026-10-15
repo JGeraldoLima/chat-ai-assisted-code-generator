@@ -1,0 +1,16 @@
+[web] spec 1.0.0 · hash 780413cc4e22 · 17 files → harness/runs/2026-10-15T14-59-33-937Z-web/spec-bundle.md
+[web] setup: npm ci --no-audit --no-fund
+[web] cleaned 7 generated files under `webclient/src/`
+[web] generating with claude-opus-5-5 (effort high)…
+[web] generate: done in 1230s, 73 turns, $5.08
+[web] gate boundary      PASS
+[web] gate traceability  PASS
+[web] gate build         PASS (3s)
+[web] gate lint          PASS (1s)
+[web] gate unit-tests    PASS (4s)
+[web] gates green; running spec-conformance review…
+[web] review: done in 284s, 3 turns, $1.23
+[web] review: violations=0 unclear=6 ok=43
+[web] ACCEPTED. 32 generated files. Run log: harness/runs/2026-10-15T14-59-33-937Z-web
+[web] commit suggestion (review the diff first):
+  git -C webclient add -A && git -C webclient commit -m "gen(web): regenerate from spec 780413cc4e22" -m "Generated-by: chatgen-harness 1.0.0 (claude-opus-5-5) spec@780413cc4e22"

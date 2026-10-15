@@ -1,0 +1,154 @@
+server: http://localhost:8080 (portal http://localhost:8080/admin)
+  building web client…
+(node:21104) [DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities, as the arguments are not escaped, only concatenated.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+> chat-webclient@0.0.0 build
+> tsc -b && vite build
+
+[36mvite v8.3.4 [32mbuilding client environment for production...[36m[39m
+transforming...
+✓ 35 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   0.45 kB │ gzip:  0.29 kB
+dist/assets/index-CfirsPPX.css    2.35 kB │ gzip:  0.89 kB
+dist/assets/index-EYA2-ier.js   235.82 kB │ gzip: 73.57 kB
+
+[32m✓ built in 106ms[39m
+
+▶ alice-bob-offline: The reference interop scenario from the brief (offline queueing on both sides)
+  bindings: alice=android, bob=web
+  ✓  1 reset (10ms)
+  ✓  2 launch alice (2594ms)
+  ✓  3 login alice (22559ms)
+  ✓  4 launch bob (724ms)
+  ✓  5 login bob (79ms)
+  ✓  6 expectConnection alice (2217ms)
+  ✓  7 expectConnection bob (2ms)
+  ✓  8 send alice "Hi Bob, I have something important to te" (44692ms)
+  ✓  9 expectThread alice (4915ms)
+  ✓ 10 expectThread bob (52ms)
+  ✓ 11 send bob "What is it?" (49ms)
+  ✓ 12 expectThread bob (257ms)
+  ✓ 13 expectThread alice (4555ms)
+  ✓ 14 network alice online=false (6ms)
+  ✓ 15 expectConnection alice (2218ms)
+  ✓ 16 send alice "I got the job offer!" (23503ms)
+  ✓ 17 expectConnection alice (2683ms)
+  ✓ 18 expectThread alice (5329ms)
+  ✓ 19 network bob online=false (7ms)
+  ✓ 20 expectConnection bob (5ms)
+  ✓ 21 send bob "Are you still there?" (58ms)
+  ✓ 22 expectConnection bob (4ms)
+  ✓ 23 expectThread bob (5ms)
+  ✓ 24 expectServer (5ms)
+  ✓ 25 network alice online=true (6ms)
+  ✓ 26 expectConnection alice (7646ms)
+  ✓ 27 expectThread alice (4488ms)
+  ✓ 28 expectServer (3ms)
+  ✓ 29 network alice online=false (2ms)
+  ✓ 30 expectConnection alice (2235ms)
+  ✓ 31 network bob online=true (1ms)
+  ✓ 32 expectConnection bob (7914ms)
+  ✓ 33 expectThread bob (3ms)
+  ✓ 34 expectServer (4ms)
+  ✓ 35 expectThread alice (4599ms)
+  ✓ 36 network alice online=true (4ms)
+  ✓ 37 expectThread alice (4523ms)
+
+▶ conversation-order: Conversations are ordered by latest activity, newest first
+  bindings: alice=android, bob=web, carol=reference
+  ✓  1 reset (3ms)
+  ✓  2 launch alice (2649ms)
+  ✓  3 login alice (22604ms)
+  ✓  4 launch bob (773ms)
+  ✓  5 login bob (77ms)
+  ✓  6 launch carol (0ms)
+  ✓  7 login carol (1ms)
+  ✓  8 expectConversations alice (4447ms)
+  ✓  9 send bob "from bob" (81ms)
+  ✓ 10 expectConversations alice (4453ms)
+  ✓ 11 send carol "from carol" (1ms)
+  ✓ 12 expectConversations alice (4499ms)
+  ✓ 13 send bob "bob again" (44ms)
+  ✓ 14 expectConversations alice (4456ms)
+  ✓ 15 expectThread alice (27170ms)
+
+▶ long-thread: A thread longer than the screen stays scrolled to the newest message
+  bindings: alice=android, bob=web
+  ✓  1 reset (3ms)
+  ✓  2 launch alice (2622ms)
+  ✓  3 login alice (22694ms)
+  ✓  4 launch bob (706ms)
+  ✓  5 login bob (62ms)
+  ✓  6 send alice "line 01" (45262ms)
+  ✓  7 send alice "line 02" (23027ms)
+  ✓  8 send alice "line 03" (22727ms)
+  ✓  9 send alice "line 04" (23101ms)
+  ✓ 10 send alice "line 05" (22851ms)
+  ✓ 11 send alice "line 06" (22122ms)
+  ✓ 12 send alice "line 07" (22538ms)
+  ✓ 13 send alice "line 08" (22767ms)
+  ✓ 14 send alice "line 09" (22367ms)
+  ✓ 15 send alice "line 10" (23068ms)
+  ✓ 16 send alice "line 11" (23521ms)
+  ✓ 17 send alice "line 12" (23285ms)
+  ✓ 18 send alice "line 13" (26346ms)
+  ✓ 19 send alice "line 14" (37863ms)
+  ✓ 20 expectLastVisible alice "line 14" (5010ms)
+  ✓ 21 expectConnection alice (2511ms)
+  ✓ 22 send bob "that was a lot of lines" (97ms)
+  ✓ 23 expectLastVisible alice "that was a lot of lines" (4735ms)
+  ✓ 24 expectConversations alice (13944ms)
+  ✓ 25 expectLastVisible alice "that was a lot of lines" (29279ms)
+
+▶ offline-fifo-restart: Queued messages survive an app restart and flush in FIFO order
+  bindings: alice=android, bob=web
+  ✓  1 reset (4ms)
+  ✓  2 launch alice (6660ms)
+  ✓  3 login alice (23659ms)
+  ✓  4 launch bob (747ms)
+  ✓  5 login bob (77ms)
+  ✓  6 expectConnection alice (2195ms)
+  ✓  7 network alice online=false (4ms)
+  ✓  8 expectConnection alice (2228ms)
+  ✓  9 send alice "one" (47607ms)
+  ✓ 10 send alice "two" (23891ms)
+  ✓ 11 send alice "three" (22455ms)
+  ✓ 12 expectConnection alice (2407ms)
+  ✓ 13 expectThread alice (4497ms)
+  ✓ 14 restart alice (3111ms)
+  ✓ 15 expectScreen alice (2358ms)
+  ✓ 16 expectConnection alice (2214ms)
+  ✓ 17 expectThread alice (27009ms)
+  ✓ 18 expectServer (2ms)
+  ✓ 19 network alice online=true (2ms)
+  ✓ 20 expectConnection alice (2245ms)
+  ✓ 21 expectThread alice (4500ms)
+  ✓ 22 expectServer (3ms)
+  ✓ 23 expectThread bob (44ms)
+  ✓ 24 restart bob (740ms)
+  ✓ 25 expectThread bob (62ms)
+
+▶ validation-and-identity: Input validation, name normalization, logout and history restore
+  bindings: alice=android
+  ✓  1 reset (1ms)
+  ✓  2 launch alice (3337ms)
+  ✓  3 expectScreen alice (2493ms)
+  ✓  4 loginExpectError alice (20638ms)
+  ✓  5 loginExpectError alice (20068ms)
+  ✓  6 login alice (22326ms)
+  ✓  7 openThreadExpectError alice (22785ms)
+  ✓  8 openThreadExpectError alice (22060ms)
+  ✓  9 expectThread alice (26616ms)
+  ✓ 10 sendExpectError alice "   " (22762ms)
+  ✗ 11 sendExpectError alice "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      could not type 1001 chars into "composer-input" (field holds "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"…)
+
+PASS  alice-bob-offline
+PASS  conversation-order
+PASS  long-thread
+PASS  offline-fifo-restart
+FAIL  validation-and-identity
+report: e2e\artifacts\2026-10-15T19-09-57-362Z\report.json

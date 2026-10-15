@@ -1,0 +1,61 @@
+server: http://localhost:8080 (portal http://localhost:8080/admin)
+  building web client…
+(node:12956) [DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities, as the arguments are not escaped, only concatenated.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+> chat-webclient@0.0.0 build
+> tsc -b && vite build
+
+[36mvite v8.3.4 [32mbuilding client environment for production...[36m[39m
+transforming...
+✓ 35 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   0.45 kB │ gzip:  0.29 kB
+dist/assets/index-CfirsPPX.css    2.35 kB │ gzip:  0.89 kB
+dist/assets/index-EYA2-ier.js   235.82 kB │ gzip: 73.57 kB
+
+[32m✓ built in 187ms[39m
+
+▶ alice-bob-offline: The reference interop scenario from the brief (offline queueing on both sides)
+  bindings: alice=web, bob=android
+  ✓  1 reset (6ms)
+  ✓  2 launch alice (414ms)
+  ✓  3 login alice (148ms)
+  ✓  4 launch bob (4194ms)
+  ✓  5 login bob (25358ms)
+  ✓  6 expectConnection alice (2ms)
+  ✓  7 expectConnection bob (2282ms)
+  ✓  8 send alice "Hi Bob, I have something important to te" (113ms)
+  ✓  9 expectThread alice (271ms)
+  ✓ 10 expectThread bob (27643ms)
+  ✓ 11 send bob "What is it?" (23698ms)
+  ✓ 12 expectThread bob (4841ms)
+  ✓ 13 expectThread alice (4ms)
+  ✓ 14 network alice online=false (8ms)
+  ✓ 15 expectConnection alice (267ms)
+  ✓ 16 send alice "I got the job offer!" (45ms)
+  ✓ 17 expectConnection alice (1ms)
+  ✓ 18 expectThread alice (2ms)
+  ✓ 19 network bob online=false (2ms)
+  ✓ 20 expectConnection bob (2257ms)
+  ✓ 21 send bob "Are you still there?" (23247ms)
+  ✓ 22 expectConnection bob (2329ms)
+  ✓ 23 expectThread bob (4459ms)
+  ✓ 24 expectServer (4ms)
+  ✓ 25 network alice online=true (3ms)
+  ✓ 26 expectConnection alice (5819ms)
+  ✓ 27 expectThread alice (2ms)
+  ✓ 28 expectServer (3ms)
+  ✓ 29 network alice online=false (3ms)
+  ✓ 30 expectConnection alice (268ms)
+  ✓ 31 network bob online=true (2ms)
+  ✓ 32 expectConnection bob (4770ms)
+  ✓ 33 expectThread bob (4452ms)
+  ✓ 34 expectServer (3ms)
+  ✓ 35 expectThread alice (2ms)
+  ✓ 36 network alice online=true (2ms)
+  ✓ 37 expectThread alice (5789ms)
+
+PASS  alice-bob-offline
+report: e2e\artifacts\2026-10-15T19-28-45-185Z\report.json

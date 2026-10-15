@@ -7,3 +7,4 @@ playwright-report/
 .DS_Store
 .env*
 !.env.example
+!docs/evidence/logs/*.log

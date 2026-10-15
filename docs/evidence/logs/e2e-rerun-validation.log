@@ -1,0 +1,42 @@
+server: http://localhost:8080 (portal http://localhost:8080/admin)
+  building web client…
+(node:35536) [DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities, as the arguments are not escaped, only concatenated.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+> chat-webclient@0.0.0 build
+> tsc -b && vite build
+
+[36mvite v8.3.4 [32mbuilding client environment for production...[36m[39m
+transforming...
+✓ 35 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   0.45 kB │ gzip:  0.29 kB
+dist/assets/index-CfirsPPX.css    2.35 kB │ gzip:  0.89 kB
+dist/assets/index-EYA2-ier.js   235.82 kB │ gzip: 73.57 kB
+
+[32m✓ built in 107ms[39m
+
+▶ validation-and-identity: Input validation, name normalization, logout and history restore
+  bindings: alice=android
+  ✓  1 reset (7ms)
+  ✓  2 launch alice (2953ms)
+  ✓  3 expectScreen alice (2384ms)
+  ✓  4 loginExpectError alice (20231ms)
+  ✓  5 loginExpectError alice (19489ms)
+  ✓  6 login alice (22006ms)
+  ✓  7 openThreadExpectError alice (21887ms)
+  ✓  8 openThreadExpectError alice (21928ms)
+  ✓  9 expectThread alice (26631ms)
+  ✓ 10 sendExpectError alice "   " (22669ms)
+  ✓ 11 sendExpectError alice "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" (37435ms)
+  ✓ 12 send alice "hello" (22760ms)
+  ✓ 13 expectThread alice (4575ms)
+  ✓ 14 expectConversations alice (13975ms)
+  ✓ 15 logout alice (9356ms)
+  ✓ 16 expectScreen alice (2204ms)
+  ✓ 17 login alice (22085ms)
+  ✓ 18 expectThread alice (26449ms)
+
+PASS  validation-and-identity
+report: e2e\artifacts\2026-10-15T19-31-29-590Z\report.json

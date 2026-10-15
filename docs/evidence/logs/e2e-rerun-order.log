@@ -1,0 +1,22 @@
+server: http://localhost:8080 (portal http://localhost:8080/admin)
+
+▶ conversation-order: Conversations are ordered by latest activity, newest first
+  bindings: alice=web, bob=android, carol=reference
+  ✓  1 reset (8ms)
+  ✓  2 launch alice (1347ms)
+  ✓  3 login alice (83ms)
+  ✓  4 launch bob (2622ms)
+  ✓  5 login bob (22715ms)
+  ✓  6 launch carol (0ms)
+  ✓  7 login carol (2ms)
+  ✓  8 expectConversations alice (7ms)
+  ✓  9 send bob "from bob" (44701ms)
+  ✓ 10 expectConversations alice (4ms)
+  ✓ 11 send carol "from carol" (2ms)
+  ✓ 12 expectConversations alice (11ms)
+  ✓ 13 send bob "bob again" (23749ms)
+  ✓ 14 expectConversations alice (3ms)
+  ✓ 15 expectThread alice (42ms)
+
+PASS  conversation-order
+report: e2e\artifacts\2026-10-15T19-36-32-856Z\report.json
