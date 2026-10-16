@@ -13,9 +13,9 @@ clients) is the example it gets evaluated on.
 | `.claude/` | human (agent-assisted) | Skills (`/generate-client`, `/verify-client`), the `spec-conformance-reviewer` sub-agent, permissions, the edit-guard hook. Vendored platform skills are listed in `.claude/skills/VENDORED.md`. |
 | `conformance/` | human (agent-assisted) | Black-box protocol tests for the server |
 | `e2e/` | human (agent-assisted) | Scenario runner + drivers (web/Playwright, android/adb, reference/headless) |
-| `server/` (submodule) | human (agent-assisted) | Express server + `/admin` network portal. **Not** under generator discipline. |
-| `webclient/` (submodule) | scaffold: human · `src/`: **generated** | Vite + React + TS |
-| `client/` (submodule) | scaffold: human · Kotlin sources: **generated** | Android, Compose, MVVM |
+| `server/` | human (agent-assisted) | Express server + `/admin` network portal. **Not** under generator discipline. |
+| `webclient/` | scaffold: human · `src/`: **generated** | Vite + React + TS |
+| `client/` | scaffold: human · Kotlin sources: **generated** | Android, Compose, MVVM |
 
 The exact generated roots for each target are in `harness/targets/<target>.json` (`generated.include` / `exclude`).
 
@@ -46,4 +46,4 @@ On Windows, Gradle needs `TEMP`/`TMP` to be a path without 8.3 short names. The 
 - Conventional prefixes: `spec:`, `harness:`, `feat:` (server), `scaffold:`, `gen(<target>):`, `e2e:`, `docs:`, `test:`, `chore:`.
 - Harness output is committed by a human after review, with the trailer `Generated-by: chatgen-harness <version> (<model>) spec@<hash>` (`regen.mjs` prints the exact command).
 - Agent-assisted interactive work carries a `Co-Authored-By:` trailer naming the model.
-- Submodule commits happen first, then the root commit that bumps the submodule pointers.
+- Everything lives in this one repository (no submodules). Commit a project's generated output on its own, e.g. `git add -A -- webclient && git commit -- webclient`, which is what `regen.mjs` prints.

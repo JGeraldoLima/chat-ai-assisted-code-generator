@@ -96,7 +96,7 @@ Android client) is the example it is evaluated on.
 
 | Piece | Role |
 |---|---|
-| `CLAUDE.md` (root and each submodule), `AGENTS.md` | Ownership map, golden rules, commands, commit conventions. Codex gets the same rules and procedure. |
+| `CLAUDE.md` (root and each project), `AGENTS.md` | Ownership map, golden rules, commands, commit conventions. Codex gets the same rules and procedure. |
 | `.claude/skills/generate-client/SKILL.md` | **The** generation procedure, shared by interactive (`/generate-client web`) and headless runs: read the bundle → map requirements → implement inside-out → test every `[client]` ID → self-verify with the gate commands → independent review → report spec ambiguities. |
 | `.claude/skills/verify-client/SKILL.md` | Re-verifies a client without regenerating it. |
 | `.claude/agents/spec-conformance-reviewer.md` | Independent, read-only reviewer with a checklist of where clients usually diverge. Writes `CONFORMANCE.md`. Its violations feed the repair loop. |
@@ -124,11 +124,13 @@ Layered, from cheapest to most end-to-end:
 
 ## 6. Repository shape
 
-One git repo per project, as the brief asks: `server/`, `webclient/` and `client/` are independent
-repos, pinned as **submodules** of the root `chatgen/` repo, which holds the generator (spec, harness,
-agent configuration, conformance, e2e). The root's submodule pointers record exactly which scaffold
-and generated commits were produced from which spec revision. Remotes are intentionally not
-configured (local-only exercise), so the submodule URLs are relative.
+**One repository.** `server/`, `webclient/` and `client/` are plain folders next to the generator (spec,
+harness, agent configuration, conformance, e2e), so a single `git clone` gives a working checkout.
+They started as separate repos pinned as submodules (one repo per project, as the brief suggested). The
+submodule URLs were relative because no remotes existed, and a public clone could not fetch them. Before
+publishing, they were folded in with an "ours" subtree merge, which keeps each project's history,
+including the `gen(<target>):` commits with their `Generated-by` trailers. Which spec produced which
+client is recorded in each project's `GENERATED.md` (spec hash) and in those commits.
 
 ## 7. Known limitations
 

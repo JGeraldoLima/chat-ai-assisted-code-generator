@@ -1,7 +1,7 @@
 {
   "name": "chat-ai-assisted-code-generator",
   "private": true,
-  "description": "Chat Generator: spec-driven client generator (harness + spec + e2e). Projects live in submodules.",
+  "description": "Chat Generator: spec-driven client generator (harness + spec + e2e). server/, webclient/ and client/ live in this repo.",
   "type": "module",
   "engines": {
     "node": ">=22"

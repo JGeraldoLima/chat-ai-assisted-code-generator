@@ -1,6 +1,6 @@
 # chat-server: agent guide
 
-This repo is a submodule of the Chat Generator root repo. Unlike the clients, the server is **not** under
+This folder is one project of the Chat Generator repository. Unlike the clients, the server is **not** under
 generator discipline: it is hand-directed code, written interactively with an agent and reviewed by a human.
 
 - **Contract:** `../spec/core/20-protocol.md` (REQ-PROTO-*, REQ-SIM-*) plus `../spec/core/schemas/`. Any behavior

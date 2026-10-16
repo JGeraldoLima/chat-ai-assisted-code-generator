@@ -1,6 +1,6 @@
 # chat-client (Android): agent guide
 
-This repo is a submodule of the Chat Generator root repo. Its Kotlin application code is **generated**.
+This folder is one project of the Chat Generator repository. Its Kotlin application code is **generated**.
 
 | Path | Owner | Rule |
 |---|---|---|

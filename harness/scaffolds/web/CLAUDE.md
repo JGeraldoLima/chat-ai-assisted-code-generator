@@ -1,6 +1,6 @@
 # chat-webclient: agent guide
 
-This repo is a submodule of the Chat Generator root repo. Its application code is **generated**.
+This folder is one project of the Chat Generator repository. Its application code is **generated**.
 
 | Path | Owner | Rule |
 |---|---|---|

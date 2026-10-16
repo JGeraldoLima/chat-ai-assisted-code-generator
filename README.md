@@ -40,7 +40,6 @@ The boundary is data ([`harness/targets/*.json`](harness/targets/)). It's enforc
 
 ```bash
 git clone <this repo> chatgen && cd chatgen
-git submodule update --init      # server/, webclient/, client/
 npm install                      # root tools (+ server deps via postinstall)
 npx playwright install chromium  # web E2E driver
 ```
@@ -117,9 +116,9 @@ chatgen/                 root repo: the generator
 ├─ e2e/                scenario runner, drivers (web / android / reference), reference client
 ├─ tools/              shared helpers (server process)
 ├─ docs/evidence/      E2E and regeneration run results
-├─ server/             submodule: Express server + network portal (hand-directed)
-├─ webclient/          submodule: Vite/React scaffold + generated src/
-└─ client/             submodule: Android scaffold + generated Kotlin sources
+├─ server/             Express server + network portal (hand-directed)
+├─ webclient/          Vite/React scaffold + generated src/
+└─ client/             Android scaffold + generated Kotlin sources
 ```
 
 > **Human verification required.** All code here, generated or hand-directed, is for local evaluation.
