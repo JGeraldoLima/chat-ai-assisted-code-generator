@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chat Generator network portal</title>
+<style>
+  :root { --bg:#f7f7f8; --card:#fff; --fg:#1b1d21; --muted:#6b7280; --line:#e5e7eb; --on:#15803d; --off:#b91c1c; --accent:#2563eb; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#111317; --card:#1a1d23; --fg:#e8eaed; --muted:#9aa0a6; --line:#2c3038; --on:#4ade80; --off:#f87171; --accent:#60a5fa; } }
+  * { box-sizing: border-box; }
+  body { margin:0; font:14px/1.45 system-ui, sans-serif; background:var(--bg); color:var(--fg); }
+  main { max-width: 1000px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  p.sub { margin: 0 0 20px; color: var(--muted); }
+  section { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 16px; overflow-x: auto; }
+  h2 { font-size: 15px; margin: 0 0 12px; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .03em; }
+  td.body { white-space: pre-wrap; word-break: break-word; }
+  .badge { display:inline-block; padding: 1px 8px; border-radius: 999px; font-weight: 600; font-size: 12px; }
+  .badge.on { color: var(--on); border: 1px solid var(--on); }
+  .badge.off { color: var(--off); border: 1px solid var(--off); }
+  button { font: inherit; padding: 4px 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--card); color: var(--fg); cursor: pointer; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.danger { color: var(--off); border-color: var(--off); }
+  input { font: inherit; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); }
+  .row { display:flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .muted { color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Chat Generator network portal</h1>
+  <p class="sub">Simulates per-user connectivity. Setting a user <b>offline</b> makes the server drop that user's connections at the TCP level (spec REQ-SIM-001/002), so clients take their real network-failure path.</p>
+
+  <section>
+    <h2>Users</h2>
+    <table>
+      <thead><tr><th>Name</th><th>Network</th><th>Pending polls</th><th>Last seen</th><th></th></tr></thead>
+      <tbody id="users"><tr><td colspan="5" class="muted">No users yet.</td></tr></tbody>
+    </table>
+    <form id="add" class="row" style="margin-top:12px">
+      <input id="add-name" placeholder="Name (e.g. Alice)" aria-label="User name" required pattern="[A-Za-z0-9_\-]{1,32}">
+      <button type="submit" data-online="false">Set offline</button>
+      <button type="submit" data-online="true">Set online</button>
+    </form>
+  </section>
+
+  <section>
+    <div class="row" style="justify-content:space-between">
+      <h2>Message log <span class="muted" id="count"></span></h2>
+      <button class="danger" id="reset" title="Clears messages, users and flags">Reset server</button>
+    </div>
+    <table>
+      <thead><tr><th>Seq</th><th>From</th><th>To</th><th>Body</th><th>Created (client)</th><th>Received (server)</th></tr></thead>
+      <tbody id="messages"><tr><td colspan="6" class="muted">No messages.</td></tr></tbody>
+    </table>
+  </section>
+</main>
+<script>
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+  const time = (iso) => iso ? new Date(iso).toLocaleTimeString() : '—';
+
+  async function setNetwork(name, online) {
+    await fetch(`/admin/api/users/${encodeURIComponent(name)}/network`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ online }),
+    });
+    refresh();
+  }
+
+  async function refresh() {
+    let state;
+    try { state = await (await fetch('/admin/api/state')).json(); } catch { return; }
+    const users = document.getElementById('users');
+    users.innerHTML = state.users.length ? state.users.map((u) => `
+      <tr>
+        <td><b>${esc(u.name)}</b></td>
+        <td><span class="badge ${u.online ? 'on' : 'off'}">${u.online ? 'online' : 'offline'}</span></td>
+        <td>${u.pendingPolls}</td>
+        <td>${time(u.lastSeenAt)}</td>
+        <td><button class="${u.online ? '' : 'primary'}" data-name="${esc(u.name)}" data-online="${!u.online}">
+          ${u.online ? 'Go offline' : 'Go online'}</button></td>
+      </tr>`).join('') : '<tr><td colspan="5" class="muted">No users yet.</td></tr>';
+
+    const msgs = document.getElementById('messages');
+    document.getElementById('count').textContent = `(${state.messages.length})`;
+    msgs.innerHTML = state.messages.length ? state.messages.slice().reverse().map((m) => `
+      <tr><td>${m.seq}</td><td>${esc(m.from)}</td><td>${esc(m.to)}</td><td class="body">${esc(m.body)}</td>
+      <td>${time(m.createdAt)}</td><td>${time(m.receivedAt)}</td></tr>`).join('')
+      : '<tr><td colspan="6" class="muted">No messages.</td></tr>';
+  }
+
+  document.getElementById('users').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-name]');
+    if (b) setNetwork(b.dataset.name, b.dataset.online === 'true');
+  });
+  document.getElementById('add').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const name = document.getElementById('add-name').value.trim();
+    if (name) setNetwork(name, e.submitter?.dataset.online === 'true');
+  });
+  document.getElementById('reset').addEventListener('click', async () => {
+    if (!confirm('Reset server state (messages, users, flags)?')) return;
+    await fetch('/admin/api/reset', { method: 'POST' });
+    refresh();
+  });
+  refresh();
+  setInterval(refresh, 1000);
+</script>
+</body>
+</html>
