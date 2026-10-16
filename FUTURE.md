@@ -28,6 +28,7 @@ What I'd do next with more time, roughly in priority order.
      (REQ-MSG-001 vs REQ-SYNC-002; REQ-SYNC-005 covers only `failed`), from `webclient/CONFORMANCE.md`;
    - the deletion order on logout vs the REQ-PERSIST-002 write order (`client/CONFORMANCE.md`);
    - REQ-SEND-001 precedence when a body is both blank and over 1000 code points;
+   - whether REQ-CONN-008 "integer" means a lexical JSON integer or any integral number (`1.0`, `1e2`);
    - the Android profile's wording on `Modifier.clickable` vs "MUST NOT use `mergeDescendants`", and its
      "observe the identity flow" engine-lifetime mechanism, which a reviewer considered racy.
    Also unspecified: what happens when a persistent write itself fails (disk full, `QuotaExceededError`).

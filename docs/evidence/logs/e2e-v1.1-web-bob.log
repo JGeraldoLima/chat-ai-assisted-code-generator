@@ -1,0 +1,160 @@
+server: http://localhost:8080 (portal http://localhost:8080/admin)
+  building web client…
+(node:9124) [DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities, as the arguments are not escaped, only concatenated.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+> chat-webclient@0.0.0 build
+> tsc -b && vite build
+
+[36mvite v8.3.4 [32mbuilding client environment for production...[36m[39m
+transforming...
+✓ 31 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   0.45 kB │ gzip:  0.29 kB
+dist/assets/index-B6VJERjW.css    2.12 kB │ gzip:  0.82 kB
+dist/assets/index-B_4SSTNN.js   236.29 kB │ gzip: 73.66 kB
+
+[32m✓ built in 169ms[39m
+
+▶ alice-bob-offline: The reference interop scenario from the brief (offline queueing on both sides)
+  bindings: alice=reference, bob=web
+  ✓  1 reset (12ms)
+  ✓  2 launch alice (0ms)
+  ✓  3 login alice (3ms)
+  ✓  4 launch bob (2845ms)
+  ✓  5 login bob (115ms)
+  ✓  6 expectConnection alice (0ms)
+  ✓  7 expectConnection bob (2ms)
+  ✓  8 send alice "Hi Bob, I have something important to te" (3ms)
+  ✓  9 expectThread alice (264ms)
+  ✓ 10 expectThread bob (58ms)
+  ✓ 11 send bob "What is it?" (61ms)
+  ✓ 12 expectThread bob (5ms)
+  ✓ 13 expectThread alice (0ms)
+  ✓ 14 network alice online=false (7ms)
+  ✓ 15 expectConnection alice (0ms)
+  ✓ 16 send alice "I got the job offer!" (1ms)
+  ✓ 17 expectConnection alice (0ms)
+  ✓ 18 expectThread alice (0ms)
+  ✓ 19 network bob online=false (5ms)
+  ✓ 20 expectConnection bob (271ms)
+  ✓ 21 send bob "Are you still there?" (53ms)
+  ✓ 22 expectConnection bob (2ms)
+  ✓ 23 expectThread bob (3ms)
+  ✓ 24 expectServer (4ms)
+  ✓ 25 network alice online=true (1ms)
+  ✓ 26 expectConnection alice (1819ms)
+  ✓ 27 expectThread alice (0ms)
+  ✓ 28 expectServer (2ms)
+  ✓ 29 network alice online=false (4ms)
+  ✓ 30 expectConnection alice (0ms)
+  ✓ 31 network bob online=true (4ms)
+  ✓ 32 expectConnection bob (271ms)
+  ✓ 33 expectThread bob (5ms)
+  ✓ 34 expectServer (2ms)
+  ✓ 35 expectThread alice (0ms)
+  ✓ 36 network alice online=true (1ms)
+  ✓ 37 expectThread alice (769ms)
+
+▶ conversation-order: Conversations are ordered by latest activity, newest first
+  bindings: alice=reference, bob=web, carol=reference
+  ✓  1 reset (2ms)
+  ✓  2 launch alice (0ms)
+  ✓  3 login alice (0ms)
+  ✓  4 launch bob (1104ms)
+  ✓  5 login bob (104ms)
+  ✓  6 launch carol (0ms)
+  ✓  7 login carol (0ms)
+  ✓  8 expectConversations alice (1ms)
+  ✓  9 send bob "from bob" (108ms)
+  ✓ 10 expectConversations alice (0ms)
+  ✓ 11 send carol "from carol" (1ms)
+  ✓ 12 expectConversations alice (257ms)
+  ✓ 13 send bob "bob again" (51ms)
+  ✓ 14 expectConversations alice (0ms)
+  ✓ 15 expectThread alice (1ms)
+
+▶ long-thread: A thread longer than the screen stays scrolled to the newest message
+  bindings: alice=reference, bob=web
+  ✓  1 reset (1ms)
+  ✓  2 launch alice (0ms)
+  ✓  3 login alice (1ms)
+  ✓  4 launch bob (1045ms)
+  ✓  5 login bob (106ms)
+  ✓  6 send alice "line 01" (2ms)
+  ✓  7 send alice "line 02" (1ms)
+  ✓  8 send alice "line 03" (0ms)
+  ✓  9 send alice "line 04" (0ms)
+  ✓ 10 send alice "line 05" (0ms)
+  ✓ 11 send alice "line 06" (0ms)
+  ✓ 12 send alice "line 07" (0ms)
+  ✓ 13 send alice "line 08" (0ms)
+  ✓ 14 send alice "line 09" (0ms)
+  ✓ 15 send alice "line 10" (0ms)
+  ✓ 16 send alice "line 11" (0ms)
+  ✓ 17 send alice "line 12" (0ms)
+  ✓ 18 send alice "line 13" (1ms)
+  ✓ 19 send alice "line 14" (0ms)
+  ✓ 20 expectLastVisible alice "line 14" (0ms)
+  ✓ 21 expectConnection alice (260ms)
+  ✓ 22 send bob "that was a lot of lines" (130ms)
+  ✓ 23 expectLastVisible alice "that was a lot of lines" (1ms)
+  ✓ 24 expectConversations alice (0ms)
+  ✓ 25 expectLastVisible alice "that was a lot of lines" (0ms)
+
+▶ offline-fifo-restart: Queued messages survive an app restart and flush in FIFO order
+  bindings: alice=reference, bob=web
+  ✓  1 reset (1ms)
+  ✓  2 launch alice (0ms)
+  ✓  3 login alice (0ms)
+  ✓  4 launch bob (1029ms)
+  ✓  5 login bob (103ms)
+  ✓  6 expectConnection alice (0ms)
+  ✓  7 network alice online=false (2ms)
+  ✓  8 expectConnection alice (263ms)
+  ✓  9 send alice "one" (1ms)
+  ✓ 10 send alice "two" (0ms)
+  ✓ 11 send alice "three" (0ms)
+  ✓ 12 expectConnection alice (0ms)
+  ✓ 13 expectThread alice (0ms)
+  ✓ 14 restart alice (4ms)
+  ✓ 15 expectScreen alice (0ms)
+  ✓ 16 expectConnection alice (0ms)
+  ✓ 17 expectThread alice (0ms)
+  ✓ 18 expectServer (2ms)
+  ✓ 19 network alice online=true (1ms)
+  ✓ 20 expectConnection alice (257ms)
+  ✓ 21 expectThread alice (0ms)
+  ✓ 22 expectServer (3ms)
+  ✓ 23 expectThread bob (57ms)
+  ✓ 24 restart bob (1028ms)
+  ✓ 25 expectThread bob (88ms)
+
+▶ validation-and-identity: Input validation, name normalization, logout and history restore
+  bindings: alice=reference
+  ✓  1 reset (2ms)
+  ✓  2 launch alice (0ms)
+  ✓  3 expectScreen alice (0ms)
+  ✓  4 loginExpectError alice (0ms)
+  ✓  5 loginExpectError alice (0ms)
+  ✓  6 login alice (0ms)
+  ✓  7 openThreadExpectError alice (0ms)
+  ✓  8 openThreadExpectError alice (0ms)
+  ✓  9 expectThread alice (0ms)
+  ✓ 10 sendExpectError alice "   " (0ms)
+  ✓ 11 sendExpectError alice "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" (1ms)
+  ✓ 12 send alice "hello" (0ms)
+  ✓ 13 expectThread alice (263ms)
+  ✓ 14 expectConversations alice (0ms)
+  ✓ 15 logout alice (2ms)
+  ✓ 16 expectScreen alice (0ms)
+  ✓ 17 login alice (1ms)
+  ✓ 18 expectThread alice (262ms)
+
+PASS  alice-bob-offline
+PASS  conversation-order
+PASS  long-thread
+PASS  offline-fifo-restart
+PASS  validation-and-identity
+report: e2e\artifacts\2026-10-15T23-30-04-914Z\report.json

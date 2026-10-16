@@ -21,9 +21,9 @@ No protocol change: the server already behaved as specified here.
 | E2E on the regenerated android client: `thread-empty` visible on screen but missing from the UI Automator tree (the `Text` sat under a `fillMaxSize()` list, and Compose drops fully covered nodes) | A shown element must be in the automation tree. The empty-state text is drawn on top of its (still composed) empty list. | 50-ui element rules, android profile (empty states) |
 | android 6: `Modifier.clickable` on `conversation-row` | Recorded in the Android profile as verified by the `conversation-order` scenario on the emulator. | android profile |
 
-Result: the clients regenerated from 1.1 were accepted with web `unclear` 6 → 1 and android 2 → 1,
-both with 0 violations. The remaining items are new, narrower gaps, queued for 1.2 in `FUTURE.md`
-(id collision with a non-`failed` local message, logout deletion order). Also not addressed: what happens
+Result: the clients regenerated from 1.1 were accepted with 0 violations. `unclear` went from 6 to 1 on web and from 2 to 1 on
+android (the final android run, after the empty-state fix, reported 2: it adds an integer-format question). The remaining items are new, narrower gaps, queued for 1.2 in `FUTURE.md`
+(id collision with a non-`failed` local message, logout deletion order, integer format). Also not addressed: what happens
 when a persistent write itself fails (disk full, `QuotaExceededError`).
 
 ## 1.0.0 (2026-10-15)

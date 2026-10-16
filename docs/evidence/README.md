@@ -2,6 +2,44 @@
 
 Results of the runs made for this submission on 2026-10-15. Machine: Windows 11, Node 24, JDK 17, Pixel_8 emulator (API 36), Claude Code 2.1.282 with `claude-opus-5-5`. Raw logs are in [`logs/`](logs/). Full run directories (agent event streams, spec bundles, gate logs) stay in `harness/runs/`, which is gitignored.
 
+## 0. Spec v1.1 (2026-10-16)
+
+Spec 1.1.0 resolves the reviewers' "unclear" items from the v1.0 runs. [`spec/CHANGELOG.md`](../../spec/CHANGELOG.md) maps each finding to its resolution. Both clients were then regenerated from the spec alone. No generated code was edited by hand. Sections 1–4 below are the original v1.0 runs, kept for comparison.
+
+**Before regenerating:** `npm run test:harness` 7/7, `npm run conformance` 20/20 (a new test pins the glossary whitespace set; the server needed no change), and the reference E2E 5/5 ([log](logs/e2e-v1.1-reference.log)).
+
+| Target | Run | Generate | Gates | Review | Result |
+|---|---|---|---|---|---|
+| web | clean, spec `2459a4cf87d0` | 1213 s · 71 turns · $5.26 | boundary ✅ traceability ✅ build ✅ lint ✅ unit-tests ✅ | violations=0 · **unclear=1** (was 6) · ok=48 | **ACCEPTED**, 28 files ([log](logs/regen-web-v1.1.log)) |
+| android | clean, spec `3db663d27b07` | 1663 s · 109 turns · $8.26 | boundary ✅ traceability ✅ build ✅ unit-tests ✅ | violations=0 · **unclear=1** (was 2) · ok=51 | **ACCEPTED**, 53 files ([log](logs/regen-android-v1.1.log)), but failed E2E (see below) |
+| android | `--no-clean` after a spec fix, spec `29b795f02f37` | 499 s · 30 turns · $2.77 | all ✅ | violations=0 · unclear=2 · ok=68 | **ACCEPTED**. Only the two list screens changed ([log](logs/regen-android-v1.1-emptystate.log)) |
+
+**What happened along the way:**
+- **Usage limit.** The first attempts ran web and android in parallel. Both hit the Claude usage limit mid-generation (web after 37 turns, android after 28), and one later android attempt stopped after 138 turns. The harness aborted cleanly each time, and the next clean run deleted the partial output. Targets were then run one at a time.
+- **Stale preview.** The first web attempt failed in `npm ci` with `EPERM` because a `vite preview` left over from an earlier session held the rolldown native binding. It was stopped. The E2E runner reuses any server already on :4173, so it would also have tested the old v1.0 build.
+- **E2E caught what review could not.** With the first v1.1 Android build as Alice, `validation-and-identity` failed in two bindings: an empty Thread showed "No messages yet." on screen, but `thread-empty` was missing from the UI Automator tree. The generated `Text` sat **under** a `fillMaxSize()` `LazyColumn` in a `Box`, and Compose drops semantics nodes that a later sibling fully covers. This was fixed in the spec (`50-ui` element rules plus the android profile's empty-state mechanism, commit `spec: shown elements must be in the automation tree…`), and Android was regenerated.
+
+**Remaining review items**, queued for v1.2 in [`FUTURE.md`](../../FUTURE.md):
+- web: an id collision between a local `queued`/`sent` message and a server copy with a different `from`.
+- android: the deletion order on logout vs REQ-PERSIST-002.
+- android: whether a REQ-CONN-008 "integer" accepts `1.0`.
+
+### E2E matrix on the v1.1 clients (`node e2e/runner.mjs --all --bind …`)
+
+The final Android APK (spec `29b795f02f37`) was installed with `--install`, and its install time was checked before the matrix ran. Web is `webclient` at spec `2459a4cf87d0`. The only spec change after that hash is the automation-tree rule, which the DOM client already met.
+
+| Binding | alice-bob-offline | offline-fifo-restart | validation-and-identity | conversation-order | long-thread | Log |
+|---|---|---|---|---|---|---|
+| reference ↔ reference | ✅ | ✅ | ✅ | ✅ | ✅ | [log](logs/e2e-v1.1-reference.log) |
+| **web** (Alice) ↔ reference | ✅ | ✅ | ✅ | ✅ | ✅ | [log](logs/e2e-v1.1-web-alice.log) |
+| reference ↔ **web** (Bob) | ✅ | ✅ | ✅ | ✅ | ✅ | [log](logs/e2e-v1.1-web-bob.log) |
+| **android** (Alice) ↔ reference | ✅ | ✅ | ✅ | ✅ | ✅ | [log](logs/e2e-v1.1-android-alice.log) |
+| reference ↔ **android** (Bob) | ✅ | ✅ | ✅ | ✅ | ✅ | [log](logs/e2e-v1.1-android-bob.log) |
+| **web (Alice) ↔ android (Bob)** | ✅ | ✅ | ✅ | ✅ | ✅ | [log](logs/e2e-v1.1-alice_web_bob_android.log) |
+| **android (Alice) ↔ web (Bob)** | ✅ | ✅ | ✅ | ✅ | ✅ | [log](logs/e2e-v1.1-alice_android_bob_web.log) |
+
+35/35 scenario runs passed, with no reruns on the final builds.
+
 ## 1. Generation runs (`node harness/regen.mjs <target>`)
 
 | Target | Start state | Generate | Gates | Repairs | Review | Result |
@@ -46,7 +84,8 @@ The brief's scenario (`alice-bob-offline`, steps 1–7, plus an epilogue) passes
 | reference ↔ reference E2E | Node `fetch` sometimes never settles an aborted long-poll | REQ-CONN-005: abandon the request; don't await it |
 | harness self-tests | REQ-UI-007 (auto-scroll) was covered by no scenario | `long-thread` scenario |
 | conformance suite | Bad regex escape in `defs.schema.json` | Fixed the schema |
-| web review (`CONFORMANCE.md`) | 6 "unclear" items, e.g. a 4xx on sync vs REQ-CONN-004, Unicode White_Space vs JS `trim()`, cross-key atomicity | Queued for spec v1.1 (see FUTURE.md) |
+| web review (`CONFORMANCE.md`) | 6 "unclear" items, e.g. a 4xx on sync vs REQ-CONN-004, Unicode White_Space vs JS `trim()`, cross-key atomicity | Resolved in spec v1.1 (section 0, `spec/CHANGELOG.md`) |
+| v1.1 android E2E | `thread-empty` drawn under a list, so missing from the automation tree | `50-ui` element rule plus the android profile's empty-state mechanism |
 
 ## 4. Other checks
 

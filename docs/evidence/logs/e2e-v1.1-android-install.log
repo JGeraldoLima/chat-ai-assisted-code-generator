@@ -1,0 +1,78 @@
+server: http://localhost:8080 (portal http://localhost:8080/admin)
+  installing Android app (gradlew installDebug)…
+(node:42572) [DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities, as the arguments are not escaped, only concatenated.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+Reusing configuration cache.
+> Task :app:preBuild UP-TO-DATE
+> Task :app:generateDebugAssets UP-TO-DATE
+> Task :app:preDebugBuild UP-TO-DATE
+> Task :app:mapDebugSourceSetPaths UP-TO-DATE
+> Task :app:generateDebugResources UP-TO-DATE
+> Task :app:generateDebugBuildConfig UP-TO-DATE
+> Task :app:extractDeepLinksDebug UP-TO-DATE
+> Task :app:javaPreCompileDebug UP-TO-DATE
+> Task :app:generateDebugGlobalSynthetics UP-TO-DATE
+> Task :app:validateSigningDebug UP-TO-DATE
+> Task :app:createDebugCompatibleScreenManifests UP-TO-DATE
+> Task :app:writeDebugSigningConfigVersions UP-TO-DATE
+> Task :app:writeDebugAppMetadata UP-TO-DATE
+> Task :app:desugarDebugFileDependencies UP-TO-DATE
+> Task :app:packageDebugResources UP-TO-DATE
+> Task :app:processDebugNavigationResources UP-TO-DATE
+> Task :app:checkDebugDuplicateClasses UP-TO-DATE
+> Task :app:mergeDebugAssets UP-TO-DATE
+> Task :app:checkDebugAarMetadata UP-TO-DATE
+> Task :app:compileDebugNavigationResources UP-TO-DATE
+> Task :app:mergeDebugResources UP-TO-DATE
+> Task :app:compressDebugAssets UP-TO-DATE
+> Task :app:mergeLibDexDebug UP-TO-DATE
+> Task :app:parseDebugLocalResources UP-TO-DATE
+> Task :app:mergeDebugJniLibFolders UP-TO-DATE
+> Task :app:mergeExtDexDebug UP-TO-DATE
+> Task :app:generateDebugRFile UP-TO-DATE
+> Task :app:processDebugMainManifest UP-TO-DATE
+> Task :app:processDebugManifest UP-TO-DATE
+> Task :app:processDebugManifestForPackage UP-TO-DATE
+> Task :app:mergeDebugNativeLibs UP-TO-DATE
+> Task :app:stripDebugDebugSymbols UP-TO-DATE
+> Task :app:processDebugResources UP-TO-DATE
+> Task :app:compileDebugKotlin UP-TO-DATE
+> Task :app:processDebugJavaRes UP-TO-DATE
+> Task :app:compileDebugJavaWithJavac UP-TO-DATE
+> Task :app:mergeDebugJavaResource UP-TO-DATE
+> Task :app:dexBuilderDebug UP-TO-DATE
+> Task :app:mergeProjectDexDebug UP-TO-DATE
+> Task :app:packageDebug UP-TO-DATE
+> Task :app:createDebugApkListingFileRedirect UP-TO-DATE
+
+> Task :app:installDebug
+Installing APK 'app-debug.apk' on 'Pixel_8(AVD) - 16' for :app:debug
+Installed on 1 device.
+
+BUILD SUCCESSFUL in 7s
+39 actionable tasks: 1 executed, 38 up-to-date
+Configuration cache entry reused.
+
+▶ validation-and-identity: Input validation, name normalization, logout and history restore
+  bindings: alice=android
+  ✓  1 reset (39ms)
+  ✓  2 launch alice (5110ms)
+  ✓  3 expectScreen alice (3303ms)
+  ✓  4 loginExpectError alice (23328ms)
+  ✓  5 loginExpectError alice (22882ms)
+  ✓  6 login alice (24979ms)
+  ✓  7 openThreadExpectError alice (25956ms)
+  ✓  8 openThreadExpectError alice (25464ms)
+  ✓  9 expectThread alice (30456ms)
+  ✓ 10 sendExpectError alice "   " (25296ms)
+  ✓ 11 sendExpectError alice "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" (44586ms)
+  ✓ 12 send alice "hello" (25286ms)
+  ✓ 13 expectThread alice (4962ms)
+  ✓ 14 expectConversations alice (15715ms)
+  ✓ 15 logout alice (10433ms)
+  ✓ 16 expectScreen alice (2490ms)
+  ✓ 17 login alice (25000ms)
+  ✓ 18 expectThread alice (30937ms)
+
+PASS  validation-and-identity
+report: e2e\artifacts\2026-10-16T05-43-43-035Z\report.json
