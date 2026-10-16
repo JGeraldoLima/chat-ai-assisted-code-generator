@@ -9,11 +9,23 @@ import { readFileSync, readdirSync, mkdirSync, writeFileSync, existsSync } from 
 import { join, basename, resolve } from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import YAML from 'yaml';
-import { startServer, isServerUp } from '../tools/server-process.mjs';
-import { createReferenceDriver } from './drivers/reference.mjs';
 import { childEnv } from '../harness/lib/paths.mjs';
 import { resolveCmd } from '../harness/lib/target.mjs';
+import { checkPrereqs, reportPrereqs } from '../harness/lib/doctor.mjs';
+
+// Prerequisites first (Node, deps, Playwright for web, JDK/SDK/adb/one device for android), before any
+// import that needs the root npm dependencies.
+{
+  const binds = (process.argv.includes('--bind') ? process.argv[process.argv.indexOf('--bind') + 1] : '').split(',').filter(Boolean);
+  const kinds = binds.map((b) => b.split('=')[1] ?? '');
+  const targets = [...new Set(kinds.map((k) => k.split('@')[0]).filter((k) => k === 'web' || k === 'android'))];
+  // A device check is needed only when an android actor does not name its device (`android@<serial>`).
+  const devices = kinds.some((k) => k === 'android');
+  if (!reportPrereqs(checkPrereqs({ targets, e2e: true, devices }), { title: 'Prerequisites', quietIfOk: true })) process.exit(1);
+}
+const { default: YAML } = await import('yaml');
+const { startServer, isServerUp } = await import('../tools/server-process.mjs');
+const { createReferenceDriver } = await import('./drivers/reference.mjs');
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const SCENARIO_DIR = join(ROOT, 'spec', 'scenarios');
@@ -68,7 +80,10 @@ async function installAndroid() {
   const [gradlew] = resolveCmd(['{gradlew}'], join(ROOT, 'client'));
   console.log('  installing Android app (gradlew installDebug)…');
   await new Promise((res, rej) => {
-    const p = spawn(gradlew, ['installDebug', '--console=plain'], { cwd: join(ROOT, 'client'), env: childEnv(), shell: process.platform === 'win32', stdio: 'inherit' });
+    // installDebug installs on every connected device unless ANDROID_SERIAL names one: use the bound serial.
+    const serial = Object.values(bindings).map((b) => b.split('@')).find(([k, s]) => k === 'android' && s)?.[1];
+    const env = childEnv(serial ? { ANDROID_SERIAL: serial } : {});
+    const p = spawn(gradlew, ['installDebug', '--console=plain'], { cwd: join(ROOT, 'client'), env, shell: process.platform === 'win32', stdio: 'inherit' });
     p.on('exit', (c) => (c === 0 ? res() : rej(new Error('installDebug failed'))));
   });
 }
@@ -124,8 +139,9 @@ async function runScenario(file, ctx) {
         const server = await fetch(`${ctx.serverUrl}/admin/api/state`).then((r) => r.json(), (err) => ({ error: String(err) }));
         writeFileSync(join(artifacts, `${doc.id}-step${i}-server.json`), JSON.stringify(server, null, 2));
         for (const [k, a] of Object.entries(actors)) {
-          await a.driver.screenshot?.(join(artifacts, `${doc.id}-step${i}-${k}.png`)).catch(() => {});
-          const snap = await a.driver.read().catch((err) => ({ error: String(err) }));
+          // Drivers may return a non-promise here; never let diagnostics crash the runner.
+          await Promise.resolve().then(() => a.driver.screenshot?.(join(artifacts, `${doc.id}-step${i}-${k}.png`))).catch(() => {});
+          const snap = await Promise.resolve().then(() => a.driver.read()).catch((err) => ({ error: String(err) }));
           writeFileSync(join(artifacts, `${doc.id}-step${i}-${k}.json`), JSON.stringify(snap, null, 2));
         }
         return { id: doc.id, ok: false, results };
@@ -133,7 +149,7 @@ async function runScenario(file, ctx) {
     }
     return { id: doc.id, ok: true, results };
   } finally {
-    for (const a of Object.values(actors)) await a.driver?.close().catch(() => {});
+    for (const a of Object.values(actors)) await Promise.resolve().then(() => a.driver?.close()).catch(() => {});
   }
 }
 
