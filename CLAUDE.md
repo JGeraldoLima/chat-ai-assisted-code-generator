@@ -31,6 +31,7 @@ The exact generated roots for each target are in `harness/targets/<target>.json`
 
 ```bash
 npm install                                   # root tools (+ server deps via postinstall)
+npm run doctor                                # prerequisite check (regen.mjs and the E2E runner also run it); `-- --agent codex`
 npm run server                                # server on :8080, portal at http://localhost:8080/admin
 npm run conformance                           # protocol conformance suite (spawns its own server)
 npm run test:harness                          # harness self-tests

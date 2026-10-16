@@ -171,3 +171,21 @@ test('token guards: stamp parsing, single-run lock, resume checkpoints, usage-li
   assert.ok(isLimitMessage("You've hit your session limit · resets 1am (America/Sao_Paulo)"));
   assert.ok(!isLimitMessage('violations=0 unclear=1 ok=48'));
 });
+
+test('doctor: agent selection and prerequisite results', async () => {
+  const { selectedAgent, checkPrereqs } = await import('../lib/doctor.mjs');
+  assert.equal(selectedAgent(['node', 'x', '--agent', 'codex']), 'codex');
+  assert.throws(() => selectedAgent(['node', 'x', '--agent', 'gpt']), /unknown agent/);
+  const base = checkPrereqs({});
+  assert.ok(base.some((r) => r.name.startsWith('Node.js') && r.ok), 'this Node passes');
+  for (const r of base) assert.ok(typeof r.name === 'string' && typeof r.ok === 'boolean' && typeof r.detail === 'string');
+  for (const r of base.filter((x) => !x.ok && !x.warn)) assert.ok(r.fix, `${r.name}: a missing prerequisite says how to fix it`);
+  const withAgent = checkPrereqs({ agent: 'codex' });
+  assert.ok(withAgent.some((r) => r.name === 'Codex CLI'), 'the selected agent is checked');
+});
+
+test('agent usage formatting: dollars for Claude Code, tokens for Codex', async () => {
+  const { formatUsage } = await import('../lib/agent.mjs');
+  assert.equal(formatUsage({ costUsd: 5.256 }), '$5.26');
+  assert.equal(formatUsage({ tokens: { input: 120000, cached: 80000, output: 30000 } }), '150k tokens (80k cached)');
+});

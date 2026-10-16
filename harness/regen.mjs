@@ -13,20 +13,22 @@
 //   --no-review      skip the spec-conformance review
 //   --max-repairs N  repair attempts after failed gates/review (default 3)
 //   --sync-scaffold  re-apply harness/scaffolds/<target> to the project and commit it (after editing a template)
+//   --agent NAME     coding agent: claude (default, Claude Code) or codex (OpenAI Codex CLI)
 //
-// Environment: CHATGEN_MODEL (default claude-opus-5-5), CHATGEN_EFFORT (default high),
-// CHATGEN_MAX_BUDGET_USD (per agent step; a capped step can be continued with --resume).
+// Environment: CHATGEN_AGENT (claude|codex), CHATGEN_MODEL (claude default claude-opus-5-5; codex: its
+// own default), CHATGEN_EFFORT (claude, default high), CHATGEN_MAX_BUDGET_USD (claude, per agent step;
+// a capped step can be continued with --resume).
+// Prerequisites are checked first (same checks as `npm run doctor`); nothing runs if one is missing.
 // Targets run one at a time, and only one regen.mjs runs at a time (harness/runs/.lock).
 import { mkdirSync, writeFileSync, readFileSync, existsSync, rmSync, cpSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { createInterface } from 'node:readline/promises';
 import { ROOT, RUNS_DIR } from './lib/paths.mjs';
-import { composeBundle } from './lib/spec.mjs';
 import { listTargets, loadTarget, cleanGenerated, generatedFiles, isGenerated, isHarnessOutput } from './lib/target.mjs';
 import { needsBootstrap, applyScaffold, scaffoldDrift } from './lib/scaffold.mjs';
-import { boundaryGate, traceabilityGate, commandGates, changedPaths, runCommand } from './lib/gates.mjs';
-import { runAgent, describeEvent, AGENT_DEFAULTS } from './lib/agent.mjs';
+import { runAgent, describeEvent, formatUsage, AGENT_DEFAULTS } from './lib/agent.mjs';
+import { checkPrereqs, reportPrereqs } from './lib/doctor.mjs';
 import { acquireLock, readStamp, saveCheckpoint, loadCheckpoint, clearCheckpoint } from './lib/runs.mjs';
 
 const HARNESS_VERSION = '1.1.0';
@@ -38,7 +40,7 @@ const opt = (name, fallback) => {
   const i = argv.indexOf(name);
   return i >= 0 ? argv[i + 1] : fallback;
 };
-const positional = argv.filter((a, i) => !a.startsWith('--') && !(argv[i - 1] === '--max-repairs'));
+const positional = argv.filter((a, i) => !a.startsWith('--') && !['--max-repairs', '--agent'].includes(argv[i - 1]));
 const which = positional[0];
 if (!which || flag('--help')) {
   const header = readFileSync(new URL(import.meta.url), 'utf8').split('\n').slice(1);
@@ -58,6 +60,17 @@ const options = {
   syncScaffold: flag('--sync-scaffold'),
 };
 
+// Prerequisites first: say what is missing before anything runs or spends tokens.
+const agentRuns = !options.prepareOnly && (options.resume || !options.gatesOnly || options.review);
+const targetIds = which === 'all' ? listTargets() : [which];
+const prereqs = checkPrereqs({ targets: targetIds, agent: agentRuns ? AGENT_DEFAULTS.agent : null });
+if (!reportPrereqs(prereqs, { title: 'Prerequisites', quietIfOk: true })) process.exit(1);
+const login = prereqs.find((r) => /login/i.test(r.name));
+console.log(`prerequisites OK${login ? ` · ${AGENT_DEFAULTS.title}: ${login.detail}` : ''}`);
+// Loaded after the check: they need the root npm dependencies (yaml).
+const { composeBundle } = await import('./lib/spec.mjs');
+const { boundaryGate, traceabilityGate, commandGates, changedPaths, runCommand } = await import('./lib/gates.mjs');
+
 const holder = acquireLock(`regen ${which}`);
 if (holder) {
   console.log(`ABORT: another regen.mjs run is active: ${holder}.\n` +
@@ -66,7 +79,7 @@ if (holder) {
 }
 
 // Plan every target first, so nothing is spent before the user has seen what will run.
-const plan = (which === 'all' ? listTargets() : [which]).map((id) => planTarget(loadTarget(id)));
+const plan = targetIds.map((id) => planTarget(loadTarget(id)));
 for (const p of plan) console.log(`[${p.target.id}] ${p.note}`);
 if (plan.some((p) => p.error)) process.exit(1);
 if (plan.some((p) => p.agent) && !(await confirmSpend(plan.filter((p) => p.agent)))) process.exit(1);
@@ -114,19 +127,28 @@ function planTarget(target) {
 
 /** Shows what the run costs and asks before spending tokens. */
 async function confirmSpend(runs) {
-  console.log(`\nThis runs Claude Code headless (model ${AGENT_DEFAULTS.model}, effort ${AGENT_DEFAULTS.effort}):`);
+  const claude = AGENT_DEFAULTS.agent === 'claude';
+  console.log(`\nThis runs ${AGENT_DEFAULTS.title} headless (${claude ? `model ${AGENT_DEFAULTS.model}, effort ${AGENT_DEFAULTS.effort}` : `model ${AGENT_DEFAULTS.model ?? 'Codex default'}`}):`);
   for (const p of runs) {
-    const e = p.target.estimate;
+    // The measured estimates are for Claude Code with the default model and effort.
+    const e = claude && !process.env.CHATGEN_MODEL && !process.env.CHATGEN_EFFORT ? p.target.estimate : null;
     const cost =
-      p.agent === 'generate' ? (e ? `≈ $${e.usd} in tokens, ${e.minutes} min (measured, incl. review)` : 'cost not measured yet')
-      : p.agent === 'review' ? '≈ $1-2 in tokens (review only)'
+      p.agent === 'generate' ? (e ? `≈ $${e.usd} in tokens, ${e.minutes} min (measured, incl. review)` : 'not measured for this agent/model; expect a long run (100+ agent turns for android)')
+      : p.agent === 'review' ? (claude ? '≈ $1-2 in tokens (review only)' : 'review only (a fraction of a full run)')
       : 'less than a full run (continues the interrupted conversation)';
     console.log(`  ${p.target.id.padEnd(8)} ${p.agent.padEnd(9)} ${cost}`);
   }
   console.log([
-    '  These are Claude Code token-cost estimates. With ANTHROPIC_API_KEY they are billed. With a Claude',
-    '  subscription they count against your plan\'s usage limits, and a full android run may not fit in one',
-    '  Pro usage window. If a limit or CHATGEN_MAX_BUDGET_USD stops a step, nothing is lost: re-run with --resume.',
+    ...(claude
+      ? [
+        '  These are Claude Code token-cost estimates. With ANTHROPIC_API_KEY they are billed. With a Claude',
+        '  subscription they count against your plan\'s usage limits, and a full android run may not fit in one',
+        '  Pro usage window. If a limit or CHATGEN_MAX_BUDGET_USD stops a step, nothing is lost: re-run with --resume.',
+      ]
+      : [
+        '  Codex reports tokens, not dollars. With CODEX_API_KEY they are billed; with a ChatGPT plan they count',
+        '  against its usage limits. If a limit stops a step, re-run with --resume.',
+      ]),
     '  You do not need to regenerate to use the app: the generated clients are committed.',
   ].join('\n'));
   if (options.yes) return true;
@@ -209,7 +231,7 @@ async function regenerate({ target, bundle, checkpoint }) {
   }
 
   // 4. Generate (or continue the interrupted generate/repair conversation)
-  const meta = { attempts: [], review: null, costUsd: 0 };
+  const meta = { attempts: [], review: null, costUsd: AGENT_DEFAULTS.agent === 'claude' ? 0 : undefined, tokens: { input: 0, cached: 0, output: 0 } };
   let attempt = 0;
   if (checkpoint && checkpoint.label !== 'review') {
     say(`resuming the interrupted ${checkpoint.label} step…`);
@@ -217,7 +239,7 @@ async function regenerate({ target, bundle, checkpoint }) {
     if (!r.ok) return stopped(r, checkpoint.label);
     attempt = Number(checkpoint.label.match(/^repair-(\d+)$/)?.[1] ?? 0);
   } else if (!options.gatesOnly && !checkpoint) {
-    say(`generating with ${AGENT_DEFAULTS.model} (effort ${AGENT_DEFAULTS.effort})…`);
+    say(`generating with ${AGENT_DEFAULTS.title} (${AGENT_DEFAULTS.label}${AGENT_DEFAULTS.effort ? `, effort ${AGENT_DEFAULTS.effort}` : ''})…`);
     const r = await agentStep(fill(read('harness/prompts/generate.md'), vars), 'generate');
     writeFileSync(join(runDir, 'generate-summary.md'), r.result ?? '');
     if (!r.ok) return stopped(r, 'generate');
@@ -233,7 +255,7 @@ async function regenerate({ target, bundle, checkpoint }) {
 
     if (!failures.length && !reviewed) {
       say('gates green; running spec-conformance review…');
-      const r = await agentStep(fill(read('harness/prompts/review.md'), vars), 'review');
+      const r = await agentStep(reviewPrompt(vars), 'review');
       const m = String(r.result).match(/violations=(\d+)\s+unclear=(\d+)\s+ok=(\d+)/);
       if (!m && (r.rateLimited || !r.ok)) {
         // Never accept without a review: an interrupted review is redone (it is cheap), not skipped.
@@ -270,8 +292,8 @@ async function regenerate({ target, bundle, checkpoint }) {
 
   writeStamp(target, bundle, meta, true);
   clearCheckpoint(target.id);
-  say(`ACCEPTED. ${generatedFiles(target).length} generated files. Run log: ${toRel(runDir)} · agent cost this run: $${meta.costUsd.toFixed(2)}`);
-  say(`commit suggestion (review the diff first):\n  git add -A -- ${target.project} && git commit -m "gen(${target.id}): regenerate from spec ${bundle.shortHash}" -m "Generated-by: chatgen-harness ${HARNESS_VERSION} (${AGENT_DEFAULTS.model}) spec@${bundle.shortHash}" -- ${target.project}`);
+  say(`ACCEPTED. ${generatedFiles(target).length} generated files. Run log: ${toRel(runDir)} · agent usage this run: ${formatUsage(meta)}`);
+  say(`commit suggestion (review the diff first):\n  git add -A -- ${target.project} && git commit -m "gen(${target.id}): regenerate from spec ${bundle.shortHash}" -m "Generated-by: chatgen-harness ${HARNESS_VERSION} (${AGENT_DEFAULTS.label}) spec@${bundle.shortHash}" -- ${target.project}`);
   return 'ok';
 
   /** An agent step stopped early. Its conversation was checkpointed, so say how to continue it. */
@@ -296,8 +318,9 @@ async function regenerate({ target, bundle, checkpoint }) {
         if (d) console.log(`[${target.id}:${label}] ${d}`);
       },
     });
-    meta.costUsd += r.costUsd ?? 0;
-    say(`${label}: ${r.ok ? 'done' : 'error'} in ${Math.round((Date.now() - started) / 1000)}s, ${r.turns ?? '?'} turns, $${(r.costUsd ?? 0).toFixed(2)}`);
+    if (r.costUsd !== undefined) meta.costUsd = (meta.costUsd ?? 0) + r.costUsd;
+    if (r.tokens) for (const k of ['input', 'cached', 'output']) meta.tokens[k] += r.tokens[k];
+    say(`${label}: ${r.ok ? 'done' : 'error'} in ${Math.round((Date.now() - started) / 1000)}s, ${r.turns ?? '?'} turns, ${formatUsage(r)}`);
     const stepLabel = resumeFrom?.label ?? label;
     if (!r.ok && r.sessionId && stepLabel !== 'review') {
       saveCheckpoint(target.id, { label: stepLabel, sessionId: r.sessionId, specHash: bundle.shortHash, runDir: toRel(runDir) });
@@ -333,17 +356,28 @@ function writeStamp(target, bundle, meta, accepted) {
     `| Spec files | ${bundle.files.length} (see \`spec/manifest.yaml\`) |`,
     `| Harness | chatgen-harness ${HARNESS_VERSION} @ root \`${rev(ROOT)}\` |`,
     `| Scaffold commit | \`${rev(target.projectDir)}\` |`,
-    `| Agent | Claude Code, model \`${AGENT_DEFAULTS.model}\`, effort \`${AGENT_DEFAULTS.effort}\` |`,
+    `| Agent | ${AGENT_DEFAULTS.title}, model \`${AGENT_DEFAULTS.model ?? 'default'}\`${AGENT_DEFAULTS.effort ? `, effort \`${AGENT_DEFAULTS.effort}\`` : ''} |`,
     `| Repair attempts | ${Math.max(0, meta.attempts.length - 1)} |`,
     `| Review | ${meta.review ? (meta.review.raw ?? `violations=${meta.review.violations} unclear=${meta.review.unclear} ok=${meta.review.ok}`) : 'skipped'} |`,
     `| Gates (last run) | ${last.map((g) => `${g.name} ${g.ok ? '✅' : '❌'}`).join(' · ')} |`,
-    `| Agent cost (this run) | $${meta.costUsd.toFixed(2)} (Claude Code token-cost estimate) |`,
+    `| Agent usage (this run) | ${formatUsage(meta)}${meta.costUsd !== undefined ? ' (Claude Code token-cost estimate)' : ''} |`,
     `| Generated at | ${new Date().toISOString()} |`,
     '',
     'To regenerate: `node harness/regen.mjs ' + target.id + '` from the repo root (see root README).',
     '',
   ];
   writeFileSync(join(target.projectDir, 'GENERATED.md'), lines.join('\n'));
+}
+
+/**
+ * Claude Code runs the review through its spec-conformance-reviewer sub-agent. Codex has no sub-agents,
+ * so it gets the same reviewer instructions inline.
+ */
+function reviewPrompt(vars) {
+  const fill = (tpl, v) => tpl.replace(/\{\{(\w+)\}\}/g, (_, k) => v[k] ?? `{{${k}}}`);
+  if (AGENT_DEFAULTS.agent === 'claude') return fill(read('harness/prompts/review.md'), vars);
+  const reviewer = read('.claude/agents/spec-conformance-reviewer.md').replace(/^---[\s\S]*?---\s*/, '');
+  return fill(read('harness/prompts/review-inline.md'), { ...vars, reviewer });
 }
 
 function read(rel) {

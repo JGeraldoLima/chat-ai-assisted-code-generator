@@ -18,7 +18,7 @@ Chat Generator turns a written spec into working messaging clients (web + Androi
 |---|---|---|
 | 1 | **Agentic harness**: what makes code generation reusable and reliable | [`harness/`](harness/) (pipeline, gates, target descriptors, prompts) · [`.claude/`](.claude/) (skills, reviewer sub-agent, edit-guard hook) · [`CLAUDE.md`](CLAUDE.md) / [`AGENTS.md`](AGENTS.md) · rationale in [`DESIGN.md`](DESIGN.md) |
 | 2 | **Spec**: the source of truth | [`spec/`](spec/) — start at [`spec/README.md`](spec/README.md). Core (platform-neutral) in [`spec/core/`](spec/core/), platform profiles in [`spec/platforms/`](spec/platforms/), executable scenarios in [`spec/scenarios/`](spec/scenarios/), extension modules in [`spec/features/`](spec/features/) |
-| 3 | **Generator**: what to run, in which tool | `node harness/regen.mjs <web\|android\|all>` (headless **Claude Code**), or `/generate-client <target>` inside Claude Code. See [Regenerate](#regenerate-the-clients) below. |
+| 3 | **Generator**: what to run, in which tool | `node harness/regen.mjs <web\|android\|all>` (headless **Claude Code**, or **Codex** with `--agent codex`), or `/generate-client <target>` inside Claude Code. Check prerequisites first with `npm run doctor`. See [Regenerate](#regenerate-the-clients) below. |
 | 4 | **Generated client code** (committed, boundary marked) | [`webclient/src/`](webclient/) and [`client/app/src/…/chatclient/`](client/) (minus `ui/theme/`). Each project has `GENERATED.md` (provenance), `TRACEABILITY.md` and `CONFORMANCE.md`. Boundary table below. |
 | 5 | **Server** (not under generator discipline) | [`server/`](server/): Express, in-memory, plus the `/admin` network portal. Verified by [`conformance/`](conformance/). |
 | 6 | **Future work** | [`FUTURE.md`](FUTURE.md) |
@@ -38,14 +38,30 @@ The boundary is data ([`harness/targets/*.json`](harness/targets/)). It's enforc
 
 ## Prerequisites
 
-- Node.js ≥ 22 (tested with 24), git.
-- **Claude Code CLI**, logged in (`claude`, then `/login`) or `ANTHROPIC_API_KEY` set. The generator spawns `claude -p`.
-- Android only: Android SDK with an emulator (tested: Pixel_8 AVD, API 36) and JDK 17+. On Windows, Gradle needs `TEMP`/`TMP` without 8.3 short names (`C:\Users\ABCDEF~1\…`). The harness sets this automatically; set it yourself when running `gradlew.bat` by hand.
+Check your machine first. Nothing runs and no tokens are spent until this passes:
+
+```bash
+npm install          # root tools (+ server deps via postinstall); needed by the check itself
+npm run doctor       # all targets, Claude Code, E2E tooling; e.g. `npm run doctor -- web --agent codex`
+```
+
+`regen.mjs` and the E2E runner run the same check automatically and stop with a list of what's missing.
+
+| Needed for | What | Checked |
+|---|---|---|
+| everything | Node.js ≥ 22 (tested with 24), git, `npm install` in the repo root | ✓ |
+| generating a client | **one** coding agent CLI, logged in: Claude Code (`claude` then `/login`, or `ANTHROPIC_API_KEY`), the default; **or** OpenAI Codex (`codex login`, or `CODEX_API_KEY`), see [Use Codex](#use-codex-instead-of-claude-code) | ✓ (also says whether you're on a subscription or a billed API key) |
+| web E2E | Playwright Chromium: `npx playwright install chromium` | ✓ |
+| Android build | JDK 17+, Android SDK (`ANDROID_HOME`, or the default location) | ✓ |
+| Android E2E | `adb` and exactly one booted device or emulator (tested: Pixel_8 AVD, API 36). With several, set `ANDROID_SERIAL` or bind `android@<serial>` | ✓ |
+
+On Windows, Gradle needs `TEMP`/`TMP` without 8.3 short names (`C:\Users\ABCDEF~1\…`). The harness sets this automatically; set it yourself when running `gradlew.bat` by hand.
 
 ```bash
 git clone https://github.com/JGeraldoLima/chat-ai-assisted-code-generator.git chatgen && cd chatgen
-npm install                      # root tools (+ server deps via postinstall)
+npm install
 npx playwright install chromium  # web E2E driver
+npm run doctor
 ```
 
 ## Cost: read before regenerating
@@ -109,6 +125,29 @@ The model defaults to `claude-opus-5-5`. Override with `CHATGEN_MODEL`, `CHATGEN
 1. `node harness/regen.mjs <target> --prepare-only`
 2. Follow `.claude/skills/generate-client/SKILL.md` (`/generate-client <target>` in Claude Code).
 3. `node harness/regen.mjs <target> --gates-only`
+
+## Use Codex instead of Claude Code
+
+The harness drives either agent through the same pipeline: plan and confirm, generate, gates, repair, review, and stamp.
+
+```bash
+npm install -g @openai/codex     # then: codex login   (or set CODEX_API_KEY)
+npm run doctor -- --agent codex
+node harness/regen.mjs web --agent codex          # or: CHATGEN_AGENT=codex node harness/regen.mjs web
+```
+
+**What's the same:**
+- Codex reads [`AGENTS.md`](AGENTS.md), which points it to `CLAUDE.md` and to the tool-agnostic procedure in `.claude/skills/generate-client/SKILL.md`.
+- The gates, the spec bundle and the acceptance criteria are identical.
+
+**What's different with Codex:**
+- **Commands:** it runs as `codex exec --json --sandbox workspace-write`, with the prompt on stdin. Set `CHATGEN_MODEL` to pick a model; Codex's default is used otherwise. `CHATGEN_EFFORT` and `CHATGEN_MAX_BUDGET_USD` are Claude-only.
+- **No edit guard during the run.** Claude Code's hook blocks out-of-boundary edits while they happen. With Codex, the boundary gate catches them right after each step, and the run fails.
+- **Review:** Codex has no sub-agents, so it gets the `spec-conformance-reviewer` instructions inline.
+- **Cost:** Codex reports tokens, not dollars, and the cost estimates in [Cost](#cost-read-before-regenerating) are for Claude Code only.
+- **Network:** Codex's `workspace-write` sandbox may block network access inside the agent. Dependency setup (`npm ci`) and the gates run outside the agent, so this mainly affects the agent's own self-checks.
+- **Not yet exercised on a real run.** The Codex backend follows the documented `codex exec` interface (JSONL events `thread.started`, `item.completed`, `turn.completed`; `codex exec resume <id>`), but no client in this repo has been generated with it. The gates still decide acceptance, so a bad Codex run is rejected, not committed.
+
 
 ## Run it
 
