@@ -4,6 +4,12 @@
   "project": "webclient",
   "scaffold": "harness/scaffolds/web",
   "profile": "spec/platforms/web.md",
+  "estimate": {
+    "$comment": "Measured cost of one full run (clean generate + review) with the default model/effort. Shown before a run; update after re-measuring.",
+    "minutes": "20-25",
+    "usd": "6-7",
+    "basis": "regen web 2026-10-15/16: generate $5.08-5.26 (71-73 turns) + review ~$1"
+  },
   "skills": [
     ".claude/skills/vite/SKILL.md"
   ],

@@ -17,9 +17,12 @@ export const AGENT_DEFAULTS = {
  * - Edits are auto-accepted; Bash is limited to the allow/deny profile in harness/agent-settings.json.
  * - The edit-guard hook (.claude/hooks/guard-boundary.mjs) blocks writes outside the target's boundary.
  * - The full event stream is saved to `logFile` (JSONL) for audit.
- * @returns {Promise<{ok: boolean, code: number, result: string, costUsd?: number, turns?: number}>}
+ * - The session is persisted, and its id returned, so an interrupted step (usage limit, budget cap,
+ *   crash) can be continued with `resume` instead of being redone from scratch.
+ * @returns {Promise<{ok: boolean, code: number, result: string, costUsd?: number, turns?: number,
+ *   sessionId?: string, rateLimited?: boolean, budgetCapped?: boolean}>}
  */
-export function runAgent(prompt, { logFile, label = 'agent', onEvent, target } = {}) {
+export function runAgent(prompt, { logFile, label = 'agent', onEvent, target, resume } = {}) {
   const args = [
     '-p', prompt,
     '--model', AGENT_DEFAULTS.model,
@@ -30,8 +33,8 @@ export function runAgent(prompt, { logFile, label = 'agent', onEvent, target } =
     '--strict-mcp-config',
     '--output-format', 'stream-json',
     '--verbose',
-    '--no-session-persistence',
   ];
+  if (resume) args.push('--resume', resume);
   if (AGENT_DEFAULTS.maxBudgetUsd) args.push('--max-budget-usd', AGENT_DEFAULTS.maxBudgetUsd);
 
   return new Promise((resolve) => {
@@ -40,7 +43,8 @@ export function runAgent(prompt, { logFile, label = 'agent', onEvent, target } =
     const child = spawn('claude', args, { cwd: ROOT, env, shell: false, stdio: ['ignore', 'pipe', 'pipe'] });
     const log = logFile ? createWriteStream(logFile) : null;
     let buf = '';
-    let final = { result: '', costUsd: undefined, turns: undefined, isError: false, rateLimited: false };
+    let final = { result: '', costUsd: undefined, turns: undefined, isError: false, rateLimited: false, budgetCapped: false };
+    let sessionId;
     child.stdout.setEncoding('utf8');
     child.stdout.on('data', (chunk) => {
       log?.write(chunk);
@@ -52,6 +56,7 @@ export function runAgent(prompt, { logFile, label = 'agent', onEvent, target } =
         let ev;
         try { ev = JSON.parse(line); } catch { continue; }
         onEvent?.(ev, label);
+        if (ev.session_id) sessionId = ev.session_id;
         if (ev.type === 'result') {
           final = {
             result: ev.result ?? '',
@@ -59,7 +64,9 @@ export function runAgent(prompt, { logFile, label = 'agent', onEvent, target } =
             turns: ev.num_turns,
             isError: !!ev.is_error,
             // Usage/session limits: retrying is pointless until the limit resets.
-            rateLimited: ev.api_error_status === 429,
+            rateLimited: ev.api_error_status === 429 || isLimitMessage(ev.result),
+            // CHATGEN_MAX_BUDGET_USD reached (--max-budget-usd): resumable like a usage limit.
+            budgetCapped: /budget/i.test(String(ev.subtype ?? '')),
           };
         }
       }
@@ -73,9 +80,15 @@ export function runAgent(prompt, { logFile, label = 'agent', onEvent, target } =
     child.on('error', (err) => resolve({ ok: false, code: -1, result: `failed to start claude: ${err.message}` }));
     child.on('close', (code) => {
       log?.end();
-      resolve({ ok: code === 0 && !final.isError, code, ...final, result: final.result || stderr.slice(-2000) });
+      const result = final.result || stderr.slice(-2000);
+      resolve({ ok: code === 0 && !final.isError, code, ...final, rateLimited: final.rateLimited || isLimitMessage(result), result, sessionId });
     });
   });
+}
+
+/** Claude subscription usage/session limit messages ("You've hit your session limit · resets 1am"). */
+export function isLimitMessage(text) {
+  return /hit your (session|usage|weekly) limit|usage limit reached|rate.?limit/i.test(String(text ?? ''));
 }
 
 /**

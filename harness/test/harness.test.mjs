@@ -124,3 +124,50 @@ test('requirement extraction: unique ids, known tags, every [ui] requirement cov
   const uncovered = reqs.filter((r) => r.tags.includes('ui') && !coverage.has(r.id)).map((r) => r.id);
   assert.deepEqual(uncovered, []);
 });
+
+test('boundary in the one repository: changedPaths sees only the project folder, project-relative', async () => {
+  const { writeFileSync, rmSync } = await import('node:fs');
+  const { changedPaths } = await import('../lib/gates.mjs');
+  const inside = join(ROOT, 'webclient', 'src', '.chatgen-selftest.tmp');
+  const outside = join(ROOT, '.chatgen-selftest.tmp');
+  try {
+    writeFileSync(inside, 'x');
+    writeFileSync(outside, 'x');
+    const paths = changedPaths(join(ROOT, 'webclient'));
+    assert.ok(paths.includes('src/.chatgen-selftest.tmp'), 'project-relative path of a change inside the project');
+    assert.ok(!paths.some((p) => p.includes('..') || p === '.chatgen-selftest.tmp'), 'changes outside the project are not reported');
+  } finally {
+    rmSync(inside, { force: true });
+    rmSync(outside, { force: true });
+  }
+});
+
+test('token guards: stamp parsing, single-run lock, resume checkpoints, usage-limit detection', async () => {
+  const { mkdtempSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { readStamp, acquireLock, saveCheckpoint, loadCheckpoint, clearCheckpoint } = await import('../lib/runs.mjs');
+  const { isLimitMessage } = await import('../lib/agent.mjs');
+  for (const id of listTargets()) {
+    const s = readStamp(loadTarget(id).projectDir);
+    assert.ok(s && /^[0-9a-f]{12}$/.test(s.hash), `${id}: GENERATED.md has a spec hash`);
+  }
+  const dir = mkdtempSync(join(tmpdir(), 'chatgen-runs-'));
+  try {
+    const lock = join(dir, '.lock');
+    const { writeFileSync } = await import('node:fs');
+    writeFileSync(lock, JSON.stringify({ pid: process.ppid, what: 'other run', started: 'now' }));
+    assert.match(acquireLock('test', lock) ?? '', /other run/, 'a live holder blocks a second run');
+    writeFileSync(lock, JSON.stringify({ pid: 2 ** 22 + 12345, what: 'dead run', started: 'then' }));
+    assert.equal(acquireLock('test', lock), null, 'a stale lock is taken over');
+
+    assert.equal(loadCheckpoint('web', dir), null);
+    saveCheckpoint('web', { label: 'generate', sessionId: 'abc', specHash: '0123456789ab' }, dir);
+    assert.equal(loadCheckpoint('web', dir).sessionId, 'abc');
+    clearCheckpoint('web', dir);
+    assert.equal(loadCheckpoint('web', dir), null);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+  assert.ok(isLimitMessage("You've hit your session limit · resets 1am (America/Sao_Paulo)"));
+  assert.ok(!isLimitMessage('violations=0 unclear=1 ok=48'));
+});

@@ -10,6 +10,12 @@
     }
   ],
   "profile": "spec/platforms/android.md",
+  "estimate": {
+    "$comment": "Measured cost of one full run (clean generate + review) with the default model/effort. Shown before a run; update after re-measuring.",
+    "minutes": "30-40",
+    "usd": "10-11",
+    "basis": "regen android 2026-10-15/16: generate $8.26-9.00 (109-118 turns) + review ~$1.6"
+  },
   "skills": [
     ".claude/skills/staff-android-engineer/SKILL.md",
     ".claude/skills/android-native-dev/SKILL.md"

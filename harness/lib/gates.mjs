@@ -35,15 +35,21 @@ export function runCommand(cmd, { cwd, logFile, timeoutMs = 20 * 60_000 }) {
 
 export const tailLines = (s, n) => s.split(/\r?\n/).slice(-n).join('\n');
 
-/** Project-relative paths that differ from the project's git HEAD (modified, deleted or untracked). */
+/**
+ * Project-relative paths under projectDir that differ from git HEAD (modified, deleted or untracked).
+ * The project is a folder of the one repository, so status is limited to it (`-- .`) and git's
+ * repo-relative paths are made project-relative by stripping the folder prefix.
+ */
 export function changedPaths(projectDir) {
-  const r = spawnSync('git', ['status', '--porcelain=v1', '-uall', '-z'], { cwd: projectDir, encoding: 'utf8' });
+  const prefix = spawnSync('git', ['rev-parse', '--show-prefix'], { cwd: projectDir, encoding: 'utf8' }).stdout.trim();
+  const r = spawnSync('git', ['status', '--porcelain=v1', '-uall', '-z', '--', '.'], { cwd: projectDir, encoding: 'utf8' });
   if (r.status !== 0) throw new Error(`git status failed in ${projectDir}: ${r.stderr}`);
   const entries = r.stdout.split('\0').filter(Boolean);
   const paths = [];
   for (let i = 0; i < entries.length; i++) {
     const e = entries[i];
-    paths.push(e.slice(3));
+    const p = e.slice(3);
+    paths.push(p.startsWith(prefix) ? p.slice(prefix.length) : p);
     if (e[0] === 'R' || e[0] === 'C') i++; // rename/copy: next entry is the source path
   }
   return paths;

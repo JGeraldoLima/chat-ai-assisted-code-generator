@@ -30,6 +30,8 @@ export function templateFiles(target) {
 }
 
 const git = (cwd, ...args) => spawnSync('git', args, { cwd, encoding: 'utf8' });
+/** True if dir is inside a git work tree (normally this repository; a standalone repo in tests). */
+const inRepo = (dir) => git(dir, 'rev-parse', '--is-inside-work-tree').stdout.trim() === 'true';
 
 function sameContent(a, b, rel) {
   if (!existsSync(b)) return false;
@@ -48,7 +50,8 @@ function sameContent(a, b, rel) {
 export function scaffoldDrift(target) {
   const tdir = templateDir(target);
   const changed = templateFiles(target).filter((rel) => !sameContent(join(tdir, rel), join(target.projectDir, rel), rel));
-  const tracked = existsSync(join(target.projectDir, '.git'))
+  // ls-files run in the project folder lists only that folder, with project-relative paths.
+  const tracked = existsSync(target.projectDir) && inRepo(target.projectDir)
     ? git(target.projectDir, 'ls-files').stdout.split('\n').filter(Boolean)
     : [];
   const inTemplate = new Set(templateFiles(target));
@@ -84,7 +87,7 @@ function placeholders() {
 export function applyScaffold(target, { reason }) {
   const tdir = templateDir(target);
   mkdirSync(target.projectDir, { recursive: true });
-  if (!existsSync(join(target.projectDir, '.git'))) {
+  if (!inRepo(target.projectDir)) {
     git(target.projectDir, 'init', '-q', '-b', 'main');
   }
   for (const rel of templateFiles(target)) {
@@ -107,7 +110,7 @@ export function applyScaffold(target, { reason }) {
   // Commit only scaffold paths; generated roots are left to the generation run.
   const scaffoldPaths = [...templateFiles(target), ...extra];
   git(target.projectDir, 'add', '-A', '--', ...templateFiles(target));
-  const staged = git(target.projectDir, 'diff', '--cached', '--name-only').stdout.trim();
+  const staged = git(target.projectDir, 'diff', '--cached', '--name-only', '--', ...scaffoldPaths).stdout.trim();
   if (!staged) return 'scaffold already matches the template';
   const identity = git(target.projectDir, 'config', 'user.name').stdout.trim()
     ? []
@@ -121,6 +124,9 @@ export function applyScaffold(target, { reason }) {
     `scaffold: ${reason} from ${target.scaffold}`,
     '-m',
     `Applied verbatim by harness/regen.mjs (${scaffoldPaths.length} paths). The template is the human-owned source of truth.`,
+    // Only the scaffold paths: the repository may hold other staged or modified files.
+    '--',
+    ...scaffoldPaths,
   );
   if (r.status !== 0) throw new Error(`scaffold commit failed: ${r.stderr}`);
   return `committed scaffold (${staged.split('\n').length} files changed)`;
