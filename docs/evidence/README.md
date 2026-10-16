@@ -40,6 +40,8 @@ The final Android APK (spec `29b795f02f37`) was installed with `--install`, and 
 
 35/35 scenario runs passed, with no reruns on the final builds.
 
+**Later reruns (2026-10-16), after the project rename:** the same code, renamed mechanically, passed every binding again except `long-thread` with Android as Alice, which failed 2 of 3 runs. With the keyboard open, the newest messages ended up below the visible area. This is a timing-dependent Android auto-scroll defect, recorded as a known limitation in [`DESIGN.md`](../../DESIGN.md) section 7, together with the intended spec fix. It was left unfixed to avoid another regeneration.
+
 ## 1. Generation runs (`node harness/regen.mjs <target>`)
 
 | Target | Start state | Generate | Gates | Repairs | Review | Result |

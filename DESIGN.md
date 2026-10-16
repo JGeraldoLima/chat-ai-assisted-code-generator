@@ -140,3 +140,13 @@ client is recorded in each project's `GENERATED.md` (spec hash) and in those com
 - The reference client and the server are hand-directed, so they share an author with the spec. The
   generated clients are the independent implementations.
 - Single-tab web assumption: two tabs of the same user would run two engines.
+- **Android auto-scroll with the keyboard open (REQ-UI-007, `long-thread`), intermittent.** The generated
+  Thread screen calls `scrollToItem(lastIndex)` when a message arrives. When the soft keyboard then
+  shrinks the viewport (`imePadding`), Compose keeps the top of the list anchored, and the newest rows
+  can end up below the visible area. Whether it fails depends on whether the keyboard settles before or
+  after the scroll. In the final matrix on these builds it passed 4/4 with Android as Alice, but it failed
+  2 of 3 later runs (Android as Alice; the web client and Android as Bob are not affected). Not fixed, to
+  avoid another regeneration. The intended fix goes through the spec, not the generated code: in
+  `spec/platforms/android.md`, require the message list to stay anchored to its newest item when the
+  viewport changes (for example, `LazyColumn(reverseLayout = true)` over the messages in reverse order),
+  then run `node harness/regen.mjs android --no-clean`.

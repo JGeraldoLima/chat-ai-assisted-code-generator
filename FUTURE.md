@@ -15,8 +15,10 @@ What I'd do next with more time, roughly in priority order.
    scenario pass rate. Treat a drop as a regression of the spec or the harness.
 4. **CI.** A pipeline that runs `test:harness`, `conformance`, the reference scenarios, and a nightly "delete +
    regenerate + full E2E matrix" on a machine with an emulator. Gate merges to `spec/` on it.
-5. **Codex parity runner.** `regen.mjs --agent codex`, driving `codex exec` with the same prompts and gates. The
-   procedure is already tool-agnostic (`AGENTS.md`).
+5. **Codex parity, proven.** `regen.mjs --agent codex` exists: it drives `codex exec` with the same prompts,
+   gates and review (see the README). It has not generated a client yet. Next: run it end to end for both
+   targets, measure its cost, add a Codex estimate to `harness/targets/*.json`, and verify `--resume` on a
+   real interruption.
 6. **Scaffold as a generated-but-reviewed layer.** Let the generator *propose* scaffold changes (a new dependency
    for a feature) as a separate patch that a human approves, instead of stopping with `## Blocked`.
 
@@ -32,6 +34,13 @@ What I'd do next with more time, roughly in priority order.
    - the Android profile's wording on `Modifier.clickable` vs "MUST NOT use `mergeDescendants`", and its
      "observe the identity flow" engine-lifetime mechanism, which a reviewer considered racy.
    Also unspecified: what happens when a persistent write itself fails (disk full, `QuotaExceededError`).
+
+   Also in v1.2, fix a **known defect: Android auto-scroll with the keyboard open** (REQ-UI-007, the
+   `long-thread` scenario, intermittent with Android as Alice). After `scrollToItem(lastIndex)`, the
+   keyboard shrinks the viewport and the newest messages can end up below the visible area (details in
+   `DESIGN.md` section 7). Fix it in `spec/platforms/android.md`: require the list to stay anchored to the
+   newest item when the viewport changes, e.g. `LazyColumn(reverseLayout = true)` over reversed messages.
+   Then run `node harness/regen.mjs android --no-clean` (about $4–5) and the Android E2E bindings.
 1. **Enable `features/reactions.md`**, then attachments (a `kind: "attachment"` with an upload endpoint) and group
    conversations (`to` becomes a conversation id, with membership rules), each as a feature module with its own
    scenarios.
