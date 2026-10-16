@@ -9,7 +9,7 @@ The generation procedure is tool-agnostic and lives in one file:
 
 1. `node harness/regen.mjs <web|android> --prepare-only`, which cleans the generated roots and writes `harness/runs/latest-<target>/spec-bundle.md`.
 2. Follow `.claude/skills/generate-client/SKILL.md` from step 2. It's plain Markdown, and every step applies to any agent.
-3. `node harness/regen.mjs <web|android> --gates-only`, which runs the boundary, traceability, build, lint and unit-test gates.
+3. `node harness/regen.mjs <web|android> --gates-only --no-review`, which runs the boundary, traceability, build, lint and unit-test gates (no tokens). Drop `--no-review` and add `--yes` to also run the Claude Code conformance review (about $1–2).
 
 The fully automated path (`node harness/regen.mjs <target>`) drives Claude Code headless. That's
 the graded, reproducible path. Codex support is the manual three-step loop above.

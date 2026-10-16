@@ -34,12 +34,15 @@ npm install                                   # root tools (+ server deps via po
 npm run server                                # server on :8080, portal at http://localhost:8080/admin
 npm run conformance                           # protocol conformance suite (spawns its own server)
 npm run test:harness                          # harness self-tests
-node harness/regen.mjs <web|android|all>      # regenerate + gates + review (headless Claude Code)
-node harness/regen.mjs <target> --gates-only  # verify without regenerating
+node harness/regen.mjs <web|android|all>      # regenerate + gates + review (headless Claude Code; costs tokens: see README "Cost")
+node harness/regen.mjs <target> --resume --yes # continue a run that a usage limit interrupted (never restart from scratch)
+node harness/regen.mjs <target> --gates-only --no-review  # verify without regenerating (no tokens)
 node e2e/runner.mjs --all --bind alice=web,bob=android   # cross-client scenarios
 ```
 
 On Windows, Gradle needs `TEMP`/`TMP` to be a path without 8.3 short names. The harness handles this, but set it yourself when running `gradlew.bat` by hand.
+
+Token discipline: run one target at a time, never `regen.mjs` in parallel (the lock refuses it), and use `--resume` after a usage limit. Agents must not pass `--yes` or `--force` to a generation run unless the user asked for that run.
 
 ## Commit conventions
 

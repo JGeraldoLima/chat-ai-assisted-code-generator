@@ -10,8 +10,9 @@ Checks the code currently in a target's generated roots. Never modifies generate
 
 1. Run the deterministic gates and the review:
    ```bash
-   node harness/regen.mjs <target> --gates-only
+   node harness/regen.mjs <target> --gates-only --yes
    ```
+   `--yes` confirms the review's token spend (about $1–2; the gates themselves cost nothing). Use `--no-review` instead to check only the gates.
    This writes `<project>/TRACEABILITY.md`, `<project>/CONFORMANCE.md` and `<project>/GENERATED.md`.
    If a gate fails, the harness starts its repair loop. Pass `--max-repairs 0` for a pure check.
 2. With `--e2e`, also run the executable scenarios against the client, paired with the headless reference client:
