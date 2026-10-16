@@ -2,8 +2,6 @@
 package com.example.chatclient
 
 import android.app.Application
-import android.net.ConnectivityManager
-import android.net.Network
 import com.example.chatclient.di.AppContainer
 
 class ChatApplication : Application() {
@@ -13,14 +11,5 @@ class ChatApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         container = AppContainer(this)
-        // REQ-CONN-005 wake source: the platform reports that a network became available.
-        // This only wakes the engine; it never sets the connection state (REQ-CONN-001).
-        getSystemService(ConnectivityManager::class.java)?.registerDefaultNetworkCallback(
-            object : ConnectivityManager.NetworkCallback() {
-                override fun onAvailable(network: Network) {
-                    container.syncController.wake()
-                }
-            },
-        )
     }
 }

@@ -6,17 +6,19 @@ import com.example.chatclient.domain.repository.IdentityRepository
 
 sealed interface LoginResult {
     data class Success(val name: String) : LoginResult
-    data object Invalid : LoginResult
+    data class Invalid(val message: String) : LoginResult
 }
 
 /**
- * REQ-ID-002 / REQ-ID-003: local-only login. A valid normalized name is persisted as the identity;
- * the engine is started by the identity observer (REQ-CONN-007). No network I/O happens here.
+ * REQ-ID-002 / REQ-ID-003 / REQ-ID-006: normalizes the input with the name rule. An invalid name
+ * persists nothing. A valid name is persisted locally (no network request); the engine starts
+ * because the identity changed (REQ-CONN-007).
  */
-class LoginUseCase(private val identity: IdentityRepository) {
+class LoginUseCase(private val identityRepository: IdentityRepository) {
     suspend operator fun invoke(rawName: String): LoginResult {
-        val name = NameRule.normalizeOrNull(rawName) ?: return LoginResult.Invalid
-        identity.save(name)
+        val name = NameRule.normalize(rawName)
+        if (!NameRule.isValid(name)) return LoginResult.Invalid(NameRule.INVALID_NAME_MESSAGE)
+        identityRepository.save(name)
         return LoginResult.Success(name)
     }
 }

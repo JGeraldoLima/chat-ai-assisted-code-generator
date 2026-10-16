@@ -4,31 +4,22 @@ package com.example.chatclient.ui.thread
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -36,156 +27,166 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import com.example.chatclient.domain.model.MessageStatus
 import com.example.chatclient.ui.ConnectionBar
+import com.example.chatclient.ui.ElementIds
+import com.example.chatclient.ui.UiText
 
-@OptIn(ExperimentalLayoutApi::class)
+private const val COMPOSER_MAX_LINES = 4
+
 @Composable
 fun ThreadScreen(
     state: ThreadUiState,
-    onBack: () -> Unit,
     onInputChange: (String) -> Unit,
     onSend: () -> Unit,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
-    val viewportHeight by remember { derivedStateOf { listState.layoutInfo.viewportSize.height } }
-    // REQ-UI-007: on open and whenever a message is added, show the last message. Re-applied when the
-    // viewport shrinks (keyboard shown), so the newest message stays visible above the composer.
-    LaunchedEffect(state.messages.size, viewportHeight) {
-        if (state.messages.isNotEmpty()) listState.scrollToItem(state.messages.lastIndex)
-    }
+    val composerFocus = remember { FocusRequester() }
+    val lastIndex = state.messages.lastIndex
+    val lastId = state.messages.lastOrNull()?.id
 
-    val focusRequester = remember { FocusRequester() }
-    // REQ-UI-008: the input keeps focus after a successful send.
+    // REQ-UI-007: when the thread opens and whenever a message is added, show the last message.
+    LaunchedEffect(lastId, state.messages.size) {
+        if (lastIndex >= 0) listState.scrollToItem(lastIndex)
+    }
+    // REQ-UI-008: after a successful send the (now empty) input keeps focus.
     LaunchedEffect(state.sentCount) {
-        if (state.sentCount > 0) focusRequester.requestFocus()
+        if (state.sentCount > 0) composerFocus.requestFocus()
     }
 
-    Scaffold { padding ->
-        Column(
-            modifier = Modifier
-                .padding(padding)
-                .consumeWindowInsets(padding)
-                .imePadding()
-                .fillMaxSize(),
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
+            OutlinedButton(
+                onClick = onBack,
+                modifier = Modifier.testTag(ElementIds.THREAD_BACK),
             ) {
-                TextButton(onClick = onBack, modifier = Modifier.testTag("thread-back")) {
-                    Text("Back")
-                }
+                Text(UiText.THREAD_BACK_LABEL)
+            }
+            Text(
+                text = state.peer,
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.testTag(ElementIds.THREAD_PEER),
+            )
+        }
+        ConnectionBar(state.connection, state.queuedCount)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f),
+        ) {
+            if (state.messages.isEmpty()) {
                 Text(
-                    text = state.peer,
-                    style = MaterialTheme.typography.titleLarge,
+                    text = UiText.THREAD_EMPTY,
+                    style = MaterialTheme.typography.bodyLarge,
                     modifier = Modifier
-                        .padding(start = 8.dp)
-                        .testTag("thread-peer"),
+                        .align(Alignment.Center)
+                        .testTag(ElementIds.THREAD_EMPTY),
                 )
             }
-            ConnectionBar(state.connection, state.queuedCount)
-            HorizontalDivider(Modifier.padding(top = 4.dp))
-
-            Box(
-                Modifier
+            LazyColumn(
+                state = listState,
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .testTag(ElementIds.MESSAGE_LIST),
+            ) {
+                items(state.messages, key = { it.id }) { message ->
+                    MessageRow(message)
+                }
+            }
+        }
+        state.error?.let { error ->
+            Text(
+                text = error,
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.testTag(ElementIds.COMPOSER_ERROR),
+            )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            OutlinedTextField(
+                value = state.input,
+                onValueChange = onInputChange,
+                placeholder = { Text(UiText.COMPOSER_PLACEHOLDER) },
+                maxLines = COMPOSER_MAX_LINES,
+                modifier = Modifier
                     .weight(1f)
-                    .fillMaxWidth(),
+                    .focusRequester(composerFocus)
+                    .testTag(ElementIds.COMPOSER_INPUT),
+            )
+            Button(
+                onClick = onSend,
+                modifier = Modifier.testTag(ElementIds.COMPOSER_SEND),
             ) {
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .testTag("message-list"),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    contentPadding = PaddingValues(12.dp),
-                ) {
-                    items(state.messages, key = { it.id }) { row -> MessageRow(row) }
-                }
-                if (state.messages.isEmpty()) {
-                    Text(
-                        text = "No messages yet.",
-                        style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier
-                            .align(Alignment.Center)
-                            .testTag("thread-empty"),
-                    )
-                }
-            }
-
-            state.error?.let {
-                Text(
-                    text = it,
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier
-                        .padding(horizontal = 16.dp, vertical = 4.dp)
-                        .testTag("composer-error"),
-                )
-            }
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                OutlinedTextField(
-                    value = state.input,
-                    onValueChange = onInputChange,
-                    placeholder = { Text("Message") },
-                    maxLines = 5,
-                    modifier = Modifier
-                        .weight(1f)
-                        .focusRequester(focusRequester)
-                        .testTag("composer-input"),
-                )
-                Button(onClick = onSend, modifier = Modifier.testTag("composer-send")) {
-                    Text("Send")
-                }
+                Text(UiText.COMPOSER_SEND_LABEL)
             }
         }
     }
 }
 
-/** REQ-UI-004. Mine are aligned to the end, the peer's to the start. Children keep their own tags. */
+/** REQ-UI-004. My messages align to the end, the peer's to the start. No merged semantics. */
 @Composable
-private fun MessageRow(row: MessageRowUi) {
+private fun MessageRow(message: MessageItem) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .testTag("message-row"),
-        horizontalAlignment = if (row.mine) Alignment.End else Alignment.Start,
+            .testTag(ElementIds.MESSAGE_ROW),
+        horizontalAlignment = if (message.isMine) Alignment.End else Alignment.Start,
     ) {
+        Text(
+            text = message.from,
+            style = MaterialTheme.typography.labelMedium,
+            modifier = Modifier.testTag(ElementIds.MESSAGE_FROM),
+        )
         Surface(
-            shape = RoundedCornerShape(12.dp),
-            color = if (row.mine) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
-            modifier = Modifier.widthIn(max = 300.dp),
+            color = if (message.isMine) {
+                MaterialTheme.colorScheme.primaryContainer
+            } else {
+                MaterialTheme.colorScheme.surfaceVariant
+            },
+            shape = MaterialTheme.shapes.medium,
+            modifier = Modifier.widthIn(max = 320.dp),
         ) {
-            Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-                Text(
-                    text = row.from,
-                    style = MaterialTheme.typography.labelMedium,
-                    modifier = Modifier.testTag("message-from"),
-                )
-                Text(
-                    text = row.body,
-                    style = MaterialTheme.typography.bodyLarge,
-                    modifier = Modifier.testTag("message-body"),
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        text = row.time,
-                        style = MaterialTheme.typography.labelSmall,
-                        modifier = Modifier.testTag("message-time"),
-                    )
-                    Text(
-                        text = row.status,
-                        style = MaterialTheme.typography.labelSmall,
-                        modifier = Modifier.testTag("message-status"),
-                    )
-                }
-            }
+            Text(
+                text = message.body,
+                style = MaterialTheme.typography.bodyLarge,
+                modifier = Modifier
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
+                    .testTag(ElementIds.MESSAGE_BODY),
+            )
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                text = message.status,
+                style = MaterialTheme.typography.labelSmall,
+                color = if (message.status == MessageStatus.FAILED.wire) {
+                    MaterialTheme.colorScheme.error
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+                modifier = Modifier.testTag(ElementIds.MESSAGE_STATUS),
+            )
+            Text(
+                text = message.time,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.testTag(ElementIds.MESSAGE_TIME),
+            )
         }
     }
 }

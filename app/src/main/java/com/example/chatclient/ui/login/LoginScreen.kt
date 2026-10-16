@@ -11,7 +11,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -19,47 +18,51 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import com.example.chatclient.ui.ElementIds
+import com.example.chatclient.ui.UiText
 
 @Composable
 fun LoginScreen(
     state: LoginUiState,
     onNameChange: (String) -> Unit,
     onSubmit: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    Scaffold { padding ->
-        Column(
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(24.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        OutlinedTextField(
+            value = state.name,
+            onValueChange = onNameChange,
+            placeholder = { Text(UiText.LOGIN_NAME_PLACEHOLDER) },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(onDone = { onSubmit() }),
             modifier = Modifier
-                .padding(padding)
-                .fillMaxSize()
-                .padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp, alignment = Alignment.CenterVertically),
-        ) {
-            OutlinedTextField(
-                value = state.name,
-                onValueChange = onNameChange,
-                placeholder = { Text("Your name") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                keyboardActions = KeyboardActions(onDone = { onSubmit() }),
+                .fillMaxWidth()
+                .testTag(ElementIds.LOGIN_NAME),
+        )
+        state.error?.let { error ->
+            Text(
+                text = error,
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .testTag("login-name"),
+                    .testTag(ElementIds.LOGIN_ERROR),
             )
-            state.error?.let {
-                Text(
-                    text = it,
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.testTag("login-error"),
-                )
-            }
-            Button(
-                onClick = onSubmit,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("login-submit"),
-            ) {
-                Text("Continue")
-            }
+        }
+        Button(
+            onClick = onSubmit,
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag(ElementIds.LOGIN_SUBMIT),
+        ) {
+            Text(UiText.LOGIN_SUBMIT_LABEL)
         }
     }
 }

@@ -3,13 +3,13 @@ package com.example.chatclient.domain.repository
 
 import kotlinx.coroutines.flow.StateFlow
 
-/** The persisted identity: the normalized name of the logged-in user, or null when logged out. */
+/** The persisted identity (spec 10-identity). `null` means logged out. */
 interface IdentityRepository {
     val identity: StateFlow<String?>
 
-    /** Durably persists [name] (already normalized and valid). */
+    /** Persists [name], which must already be normalized and valid (REQ-ID-003). */
     suspend fun save(name: String)
 
-    /** Deletes the persisted identity. */
+    /** Deletes the persisted identity (REQ-ID-004). */
     suspend fun clear()
 }

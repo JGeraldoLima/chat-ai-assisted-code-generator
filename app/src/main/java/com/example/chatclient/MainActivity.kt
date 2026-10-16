@@ -23,7 +23,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
-        // REQ-CONN-005 wake source: the app returns to the foreground.
+        // REQ-CONN-005 wake source: the app returning to the foreground.
         container.syncController.wake()
     }
 }

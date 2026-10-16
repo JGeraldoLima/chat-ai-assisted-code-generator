@@ -2,35 +2,16 @@
 package com.example.chatclient.domain.usecase
 
 import com.example.chatclient.domain.model.Conversation
-import com.example.chatclient.domain.model.Message
-import com.example.chatclient.domain.repository.IdentityRepository
+import com.example.chatclient.domain.model.conversationsOf
 import com.example.chatclient.domain.repository.MessageRepository
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 
-/** All conversations in REQ-ORDER-002 order. */
-class ObserveConversationsUseCase(
-    private val identity: IdentityRepository,
-    private val messages: MessageRepository,
-) {
-    operator fun invoke(): Flow<List<Conversation>> =
-        combine(identity.identity, messages.state) { me, state ->
-            if (me == null) emptyList() else conversations(state.messages.values, me)
-        }.distinctUntilChanged()
+/** Conversations in REQ-ORDER-002 order. */
+class ObserveConversationsUseCase(private val messageRepository: MessageRepository) {
+    fun current(me: String): List<Conversation> = conversationsOf(messageRepository.messages.value.values, me)
 
-    companion object {
-        /**
-         * REQ-ORDER-002: one conversation per peer, ordered by the activity time of its last message
-         * (in REQ-ORDER-001 order), newest first; ties by peer name ascending. Names are ASCII by the
-         * name rule, so String order equals code-point order.
-         */
-        val CONVERSATION_ORDER: Comparator<Conversation> =
-            compareByDescending<Conversation> { it.lastMessage.activityTime }.thenBy { it.peer }
-
-        fun conversations(all: Collection<Message>, me: String): List<Conversation> =
-            all.groupBy { it.peer(me) }
-                .map { (peer, msgs) -> Conversation(peer, msgs.maxWith(ObserveThreadUseCase.MESSAGE_ORDER)) }
-                .sortedWith(CONVERSATION_ORDER)
-    }
+    operator fun invoke(me: String): Flow<List<Conversation>> =
+        messageRepository.messages.map { conversationsOf(it.values, me) }.distinctUntilChanged()
 }

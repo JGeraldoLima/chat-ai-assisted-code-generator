@@ -4,27 +4,37 @@ package com.example.chatclient.domain.model
 import java.time.Instant
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeParseException
 import java.time.temporal.ChronoUnit
 
-/**
- * Glossary "Timestamp": `YYYY-MM-DDTHH:mm:ss.sssZ`. The format is fixed-width, so comparing two
- * timestamps as strings gives the same result as comparing the instants they denote.
- */
+/** Glossary "Timestamp": `YYYY-MM-DDTHH:mm:ss.sssZ`, always 3 fractional digits and `Z`. */
 object Timestamps {
     private val FORMAT: DateTimeFormatter =
         DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'").withZone(ZoneOffset.UTC)
 
     fun format(instant: Instant): String = FORMAT.format(instant.truncatedTo(ChronoUnit.MILLIS))
 
-    fun parse(timestamp: String): Instant? = try {
-        Instant.parse(timestamp)
-    } catch (e: Exception) {
+    fun parseOrNull(text: String): Instant? = try {
+        Instant.parse(text)
+    } catch (e: DateTimeParseException) {
         null
     }
 
-    /** REQ-SEND-002: `now`, unless that is not strictly after [previousMax]; then `previousMax + 1 ms`. */
-    fun nextCreatedAt(now: Instant, previousMax: Instant?): Instant {
-        val candidate = now.truncatedTo(ChronoUnit.MILLIS)
-        return if (previousMax != null && !candidate.isAfter(previousMax)) previousMax.plusMillis(1) else candidate
+    /**
+     * REQ-SEND-002: `now`, but strictly greater than the `createdAt` of every stored message from me.
+     * If the clock gives an equal or earlier instant, the previous maximum + 1 ms is used.
+     */
+    fun nextCreatedAt(now: Instant, existing: Collection<Message>, me: String): String {
+        val nowMillis = now.truncatedTo(ChronoUnit.MILLIS)
+        val previousMax = existing.asSequence()
+            .filter { it.from == me }
+            .mapNotNull { parseOrNull(it.createdAt) }
+            .maxOrNull()
+        val chosen = if (previousMax != null && !nowMillis.isAfter(previousMax)) {
+            previousMax.truncatedTo(ChronoUnit.MILLIS).plusMillis(1)
+        } else {
+            nowMillis
+        }
+        return format(chosen)
     }
 }

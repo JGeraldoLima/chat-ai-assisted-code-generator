@@ -4,17 +4,17 @@ package com.example.chatclient.domain.repository
 import com.example.chatclient.domain.model.ConnectionState
 import kotlinx.coroutines.flow.StateFlow
 
-/** The sync engine as seen by the rest of the app (spec/core/40-connectivity.md). */
+/** Control surface of the single sync engine (spec 40-connectivity). */
 interface SyncController {
-    /** REQ-CONN-001. `offline` whenever the engine is not running or has just started. */
+    /** REQ-CONN-001: `offline` until a request of the running engine gets an expected answer. */
     val connectionState: StateFlow<ConnectionState>
 
-    /** Starts the engine for [me]. A no-op if it is already running for [me] (REQ-CONN-007). */
-    fun start(me: String)
+    /** Starts the engine for [me], replacing any running instance (REQ-CONN-007). */
+    suspend fun start(me: String)
 
-    /** Stops the engine, aborting any in-flight request, and returns once it has stopped (REQ-ID-004). */
+    /** Stops the engine, aborting any in-flight request, and waits until it has stopped (REQ-ID-004). */
     suspend fun stop()
 
-    /** REQ-CONN-005: interrupts a backoff sleep or a long-poll. Never blocks. */
+    /** REQ-CONN-005 / REQ-CONN-009: interrupts the engine's current wait; latched if none is running. */
     fun wake()
 }

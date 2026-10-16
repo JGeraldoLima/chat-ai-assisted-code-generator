@@ -2,27 +2,26 @@
 package com.example.chatclient.data.remote
 
 import com.example.chatclient.domain.model.Message
-import com.example.chatclient.domain.model.ServerMessage
+import com.example.chatclient.domain.model.RemoteMessage
+import com.example.chatclient.domain.model.SyncPage
 
-/** The v1 wire protocol (spec/core/20-protocol.md), as used by the sync engine. Implementations never throw. */
-interface ChatApi {
-    /** `POST /v1/messages`. `Ok` on 200/201 (REQ-PROTO-013), `Rejected` on 4xx, else `NetworkFailure`. */
-    suspend fun send(user: String, message: Message): ApiResult<ServerMessage>
-
-    /** `GET /v1/messages?after=&wait=`. `Ok` only on 200, `Rejected` on 4xx, else `NetworkFailure`. */
-    suspend fun sync(user: String, after: Long, wait: Int): ApiResult<SyncPage>
-}
-
-/** One sync response (sync-response.schema.json). */
-data class SyncPage(val messages: List<ServerMessage>, val cursor: Long, val hasMore: Boolean)
-
-/** The HTTP outcome of one request, reduced to what the engine branches on. */
+/** The outcome of one completed request, classified exactly as REQ-CONN-008. */
 sealed interface ApiResult<out T> {
+    /** Acknowledgement (POST 200/201) or successful sync response (GET 200). */
     data class Ok<T>(val value: T) : ApiResult<T>
 
-    /** The server answered with a 4xx. [code] is `error.code` (REQ-PROTO-003). */
-    data class Rejected(val status: Int, val code: String) : ApiResult<Nothing>
+    /** POST 400 or 409 only; [code] falls back to `http_<status>` (REQ-OUTBOX-006). */
+    data class Rejected(val code: String) : ApiResult<Nothing>
 
-    /** No usable response: I/O error, connection reset, timeout, 5xx, or an unreadable body. */
-    data class NetworkFailure(val cause: Throwable? = null) : ApiResult<Nothing>
+    /** Everything else: network error, timeout, 5xx, any other status, a malformed body. */
+    data object NetworkFailure : ApiResult<Nothing>
+}
+
+/** The `/v1/messages` endpoints (spec 20-protocol). Implementations never throw for HTTP outcomes. */
+interface ChatApi {
+    /** `POST /v1/messages` for the outbox head [message], as user [me]. */
+    suspend fun send(me: String, message: Message): ApiResult<RemoteMessage>
+
+    /** `GET /v1/messages?after=[after]&wait=[waitSeconds]`, as user [me]. */
+    suspend fun sync(me: String, after: Long, waitSeconds: Int): ApiResult<SyncPage>
 }

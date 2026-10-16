@@ -2,32 +2,42 @@
 package com.example.chatclient.domain.repository
 
 import com.example.chatclient.domain.model.Message
-import com.example.chatclient.domain.model.MessageStoreState
-import com.example.chatclient.domain.model.ServerMessage
+import com.example.chatclient.domain.model.RemoteMessage
+import com.example.chatclient.domain.model.SyncPage
 import kotlinx.coroutines.flow.StateFlow
 
 /**
- * Message store + outbox + cursor. Every mutation is persisted atomically **before** [state]
- * reflects it, so observers never see unpersisted data (REQ-SEND-003, REQ-SYNC-003, REQ-PERSIST-001).
+ * The persisted message store, outbox and cursor (REQ-PERSIST-001). Every mutation is persisted
+ * before the in-memory flows change, so observers only ever see durable state.
  */
 interface MessageRepository {
-    val state: StateFlow<MessageStoreState>
+    /** Message store, keyed by id. */
+    val messages: StateFlow<Map<String, Message>>
+
+    /** Outbox: FIFO list of message ids not yet acknowledged. */
+    val outbox: StateFlow<List<String>>
+
+    /** Highest server `seq` merged; starts at 0. */
+    val cursor: StateFlow<Long>
 
     /**
-     * Builds a new `queued` message from the current state (so `createdAt` can be computed against
-     * the store atomically), stores it and appends it to the outbox tail. Returns the stored message.
+     * REQ-SEND-003: builds a message from the current store (so `createdAt` can be made strictly
+     * increasing, REQ-SEND-002), writes it to the store and appends it to the outbox tail.
      */
-    suspend fun enqueue(create: (MessageStoreState) -> Message): Message
+    suspend fun enqueue(create: (current: Collection<Message>) -> Message): Message
 
     /** REQ-OUTBOX-002. */
-    suspend fun acknowledge(server: ServerMessage)
+    suspend fun applyAcknowledgement(ack: RemoteMessage, me: String)
 
-    /** REQ-OUTBOX-004. */
-    suspend fun reject(id: String, errorCode: String)
+    /** REQ-OUTBOX-004 / REQ-OUTBOX-006. */
+    suspend fun applyRejection(id: String, errorCode: String)
 
-    /** REQ-SYNC-002 / REQ-SYNC-003. */
-    suspend fun merge(page: List<ServerMessage>, cursor: Long, me: String)
+    /** REQ-SYNC-002/003/005: merges the page and persists the response cursor (REQ-PROTO-023). */
+    suspend fun applySync(page: SyncPage, me: String)
 
-    /** REQ-ID-004: deletes the message store, outbox and cursor. */
+    /** Removes an outbox id that no longer refers to a queued message. */
+    suspend fun dropFromOutbox(id: String)
+
+    /** REQ-ID-004: deletes the cursor, the outbox and the message store, in that order. */
     suspend fun clear()
 }

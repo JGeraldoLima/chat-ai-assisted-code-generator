@@ -3,147 +3,99 @@ package com.example.chatclient.ui.thread
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
-import com.example.chatclient.di.AppContainer
 import com.example.chatclient.domain.model.ConnectionState
 import com.example.chatclient.domain.model.Message
-import com.example.chatclient.domain.model.Timestamps
-import com.example.chatclient.domain.repository.IdentityRepository
 import com.example.chatclient.domain.repository.MessageRepository
 import com.example.chatclient.domain.repository.SyncController
 import com.example.chatclient.domain.usecase.ObserveThreadUseCase
 import com.example.chatclient.domain.usecase.SendMessageUseCase
 import com.example.chatclient.domain.usecase.SendResult
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.Flow
+import com.example.chatclient.ui.MessageTimeFormatter
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.drop
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 
-data class MessageRowUi(
+/** One `message-row` (REQ-UI-004). */
+data class MessageItem(
     val id: String,
     val from: String,
     val body: String,
     val status: String,
     val time: String,
-    val mine: Boolean,
+    val isMine: Boolean,
 )
 
 data class ThreadUiState(
-    val peer: String = "",
-    val messages: List<MessageRowUi> = emptyList(),
+    val peer: String,
     val connection: ConnectionState = ConnectionState.OFFLINE,
     val queuedCount: Int = 0,
+    /** REQ-ORDER-001 order. */
+    val messages: List<MessageItem> = emptyList(),
     val input: String = "",
-    /** `composer-error` text; null means the element is absent. */
+    /** `composer-error`: present after a failed send attempt, until the next successful send. */
     val error: String? = null,
-    /** Incremented after every successful send, so the screen can keep focus on the input (REQ-UI-008). */
+    /** Incremented after each successful send, so the screen can keep focus on the input (REQ-UI-008). */
     val sentCount: Int = 0,
 )
 
-private data class Composer(val input: String = "", val error: String? = null, val sentCount: Int = 0)
-
-@OptIn(ExperimentalCoroutinesApi::class)
 class ThreadViewModel(
-    private val identity: IdentityRepository,
+    private val me: String,
+    private val peer: String,
     observeThread: ObserveThreadUseCase,
-    messages: MessageRepository,
-    sync: SyncController,
-    private val send: SendMessageUseCase,
-    zone: ZoneId = ZoneId.systemDefault(),
+    messageRepository: MessageRepository,
+    syncController: SyncController,
+    private val sendMessage: SendMessageUseCase,
+    private val timeFormatter: MessageTimeFormatter = MessageTimeFormatter(),
 ) : ViewModel() {
-    private val peer = MutableStateFlow<String?>(null)
-    private val composer = MutableStateFlow(Composer())
-    private val timeFormat = DateTimeFormatter.ofPattern("HH:mm").withZone(zone)
-
-    private val rows: Flow<List<MessageRowUi>> = combine(
-        peer.flatMapLatest { p -> if (p == null) flowOf(emptyList()) else observeThread(p) },
-        identity.identity,
-    ) { list, me -> list.map { toRow(it, me) } }
-
-    val state: StateFlow<ThreadUiState> = combine(
-        combine(peer, composer, ::Pair),
-        rows,
-        messages.state.map { it.outbox.size }.distinctUntilChanged(),
-        sync.connectionState,
-    ) { (p, c), rows, queued, connection ->
+    private val _uiState = MutableStateFlow(
         ThreadUiState(
-            peer = p.orEmpty(),
-            messages = rows,
-            connection = connection,
-            queuedCount = queued,
-            input = c.input,
-            error = c.error,
-            sentCount = c.sentCount,
-        )
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, ThreadUiState())
+            peer = peer,
+            connection = syncController.connectionState.value,
+            queuedCount = messageRepository.outbox.value.size,
+            messages = observeThread.current(me, peer).map(::toItem),
+        ),
+    )
+    val uiState: StateFlow<ThreadUiState> = _uiState.asStateFlow()
 
     init {
-        // A new session never inherits the previous session's thread or draft.
+        // REQ-UI-003 / REQ-UI-005: every change is reflected without user action.
         viewModelScope.launch {
-            identity.identity.drop(1).collect {
-                peer.value = null
-                composer.value = Composer()
-            }
+            observeThread(me, peer).collect { list -> _uiState.update { it.copy(messages = list.map(::toItem)) } }
+        }
+        viewModelScope.launch {
+            syncController.connectionState.collect { state -> _uiState.update { it.copy(connection = state) } }
+        }
+        viewModelScope.launch {
+            messageRepository.outbox.collect { outbox -> _uiState.update { it.copy(queuedCount = outbox.size) } }
         }
     }
 
-    /** Called when the Thread screen shows [peer]. Switching peers starts with an empty composer. */
-    fun open(peer: String) {
-        if (this.peer.value != peer) {
-            this.peer.value = peer
-            composer.value = Composer()
-        }
+    fun onInputChange(text: String) {
+        _uiState.update { it.copy(input = text) }
     }
 
-    fun onInputChange(value: String) = composer.update { it.copy(input = value) }
-
-    /** REQ-SEND-001 / REQ-SEND-003 / REQ-UI-008. */
+    /** REQ-SEND-001..004: on failure the input keeps its text; on success it is cleared after the write. */
     fun onSend() {
-        val me = identity.identity.value ?: return
-        val to = peer.value ?: return
-        val body = composer.value.input
+        val body = _uiState.value.input
         viewModelScope.launch {
-            when (val result = send(me, to, body)) {
-                is SendResult.Invalid -> composer.update { it.copy(error = result.error.text) }
-                is SendResult.Sent -> composer.update { Composer(input = "", error = null, sentCount = it.sentCount + 1) }
+            when (val result = sendMessage(peer, body)) {
+                is SendResult.Invalid -> _uiState.update { it.copy(error = result.message) }
+                is SendResult.Sent -> _uiState.update {
+                    it.copy(input = "", error = null, sentCount = it.sentCount + 1)
+                }
+                SendResult.NotLoggedIn -> Unit
             }
         }
     }
 
-    /** REQ-UI-004. */
-    private fun toRow(m: Message, me: String?) = MessageRowUi(
-        id = m.id,
-        from = m.from,
-        body = m.displayBody,
-        status = m.status.wire,
-        time = Timestamps.parse(m.activityTime)?.let(timeFormat::format).orEmpty(),
-        mine = m.from == me,
+    private fun toItem(message: Message) = MessageItem(
+        id = message.id,
+        from = message.from,
+        body = message.displayBody,
+        status = message.status.wire,
+        time = timeFormatter.format(message),
+        isMine = message.from == me,
     )
-
-    companion object {
-        fun factory(container: AppContainer) = viewModelFactory {
-            initializer {
-                ThreadViewModel(
-                    container.identityRepository,
-                    container.observeThreadUseCase,
-                    container.messageRepository,
-                    container.syncController,
-                    container.sendMessageUseCase,
-                )
-            }
-        }
-    }
 }

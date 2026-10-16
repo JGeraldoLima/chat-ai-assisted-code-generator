@@ -6,18 +6,19 @@ import com.example.chatclient.domain.repository.MessageRepository
 import com.example.chatclient.domain.repository.SyncController
 
 /**
- * REQ-ID-004: stop the engine (aborting any in-flight request), then delete all local state.
- * The message state is deleted before the identity, so a crash in between leaves a logged-in
- * user with empty state and cursor 0 (which re-syncs full history), never stale data for a new login.
+ * REQ-ID-004 / REQ-ID-005: stops the engine (aborting any in-flight request), then deletes all
+ * local state. The message state is deleted cursor first (see MessageRepository.clear) and the
+ * identity last, so a crash midway leaves the same user logged in with a cursor that re-fetches
+ * their history, never another user's data under a new login.
  */
 class LogoutUseCase(
-    private val sync: SyncController,
-    private val messages: MessageRepository,
-    private val identity: IdentityRepository,
+    private val syncController: SyncController,
+    private val messageRepository: MessageRepository,
+    private val identityRepository: IdentityRepository,
 ) {
     suspend operator fun invoke() {
-        sync.stop()
-        messages.clear()
-        identity.clear()
+        syncController.stop()
+        messageRepository.clear()
+        identityRepository.clear()
     }
 }

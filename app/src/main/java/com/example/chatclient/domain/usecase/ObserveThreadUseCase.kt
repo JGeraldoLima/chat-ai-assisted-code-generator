@@ -2,39 +2,17 @@
 package com.example.chatclient.domain.usecase
 
 import com.example.chatclient.domain.model.Message
-import com.example.chatclient.domain.repository.IdentityRepository
+import com.example.chatclient.domain.model.threadOf
 import com.example.chatclient.domain.repository.MessageRepository
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 
 /** The messages of one conversation in REQ-ORDER-001 order. */
-class ObserveThreadUseCase(
-    private val identity: IdentityRepository,
-    private val messages: MessageRepository,
-) {
-    operator fun invoke(peer: String): Flow<List<Message>> =
-        combine(identity.identity, messages.state) { me, state ->
-            if (me == null) emptyList() else thread(state.messages.values, me, peer)
-        }.distinctUntilChanged()
+class ObserveThreadUseCase(private val messageRepository: MessageRepository) {
+    fun current(me: String, peer: String): List<Message> =
+        threadOf(messageRepository.messages.value.values, me, peer)
 
-    companion object {
-        /**
-         * REQ-ORDER-001: messages with a `seq` first, ascending by `seq`; then messages without a
-         * `seq`, ascending by `createdAt` (timestamps compare correctly as strings), ties by `id`.
-         */
-        val MESSAGE_ORDER: Comparator<Message> = Comparator { a, b ->
-            val sa = a.seq
-            val sb = b.seq
-            when {
-                sa != null && sb != null -> sa.compareTo(sb)
-                sa != null -> -1
-                sb != null -> 1
-                else -> compareValuesBy(a, b, { it.createdAt }, { it.id })
-            }
-        }
-
-        fun thread(all: Collection<Message>, me: String, peer: String): List<Message> =
-            all.filter { it.peer(me) == peer }.sortedWith(MESSAGE_ORDER)
-    }
+    operator fun invoke(me: String, peer: String): Flow<List<Message>> =
+        messageRepository.messages.map { threadOf(it.values, me, peer) }.distinctUntilChanged()
 }

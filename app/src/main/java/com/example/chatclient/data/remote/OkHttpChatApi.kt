@@ -2,7 +2,8 @@
 package com.example.chatclient.data.remote
 
 import com.example.chatclient.domain.model.Message
-import com.example.chatclient.domain.model.ServerMessage
+import com.example.chatclient.domain.model.RemoteMessage
+import com.example.chatclient.domain.model.SyncPage
 import kotlinx.coroutines.suspendCancellableCoroutine
 import okhttp3.Call
 import okhttp3.Callback
@@ -17,122 +18,95 @@ import java.io.IOException
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.resume
-import kotlin.coroutines.resumeWithException
 
 /**
- * [ChatApi] over OkHttp. Timeouts follow REQ-CONN-006: connect 10 s; POST 10 s total;
- * GET `wait + 10` s total. Cancelling the calling coroutine cancels the OkHttp [Call].
+ * OkHttp implementation of [ChatApi]. Timeouts follow REQ-CONN-006: connect 10 s, POST 10 s total,
+ * GET `wait` + 10 s total. The body is read inside the call, so `callTimeout` covers it.
+ * Cancelling the calling coroutine cancels the OkHttp [Call] and returns at once.
  */
 class OkHttpChatApi(
     baseUrl: String,
-    client: OkHttpClient = OkHttpClient(),
+    baseClient: OkHttpClient = defaultClient(),
 ) : ChatApi {
-    private val messagesUrl: HttpUrl = "${baseUrl.trimEnd('/')}/v1/messages".toHttpUrl()
-
-    private val baseClient: OkHttpClient = client.newBuilder()
-        .connectTimeout(CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+    private val messagesUrl: HttpUrl = baseUrl.trimEnd('/').toHttpUrl().newBuilder()
+        .addPathSegments("v1/messages")
         .build()
 
-    private val postClient: OkHttpClient = baseClient.newBuilder()
-        .callTimeout(POST_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-        .readTimeout(POST_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-        .writeTimeout(POST_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+    internal val sendClient: OkHttpClient = baseClient.newBuilder()
+        .callTimeout(SEND_TIMEOUT_SECONDS, TimeUnit.SECONDS)
         .build()
 
-    private val getClients = ConcurrentHashMap<Int, OkHttpClient>()
+    private val syncClients = ConcurrentHashMap<Int, OkHttpClient>()
+    private val sharedBaseClient = baseClient
 
-    private fun getClient(wait: Int): OkHttpClient = getClients.getOrPut(wait) {
-        val seconds = getTimeoutSeconds(wait)
-        baseClient.newBuilder()
-            .callTimeout(seconds, TimeUnit.SECONDS)
-            .readTimeout(seconds, TimeUnit.SECONDS)
+    internal fun syncClient(waitSeconds: Int): OkHttpClient = syncClients.getOrPut(waitSeconds) {
+        val totalSeconds = waitSeconds.toLong() + TIMEOUT_MARGIN_SECONDS
+        sharedBaseClient.newBuilder()
+            .callTimeout(totalSeconds, TimeUnit.SECONDS)
+            .readTimeout(totalSeconds, TimeUnit.SECONDS)
             .build()
     }
 
-    override suspend fun send(user: String, message: Message): ApiResult<ServerMessage> {
-        val payload = WireJson.encodeToString(SendRequestDto.serializer(), SendRequestDto.of(message))
+    override suspend fun send(me: String, message: Message): ApiResult<RemoteMessage> {
+        val payload = ChatJson.encodeToString(SendRequestDto.serializer(), SendRequestDto.from(message))
         val request = Request.Builder()
             .url(messagesUrl)
-            .header(USER_HEADER, user)
-            // ByteArray bodies keep the media type verbatim (a String body would append "; charset=utf-8").
+            .header(USER_HEADER, me)
+            // The ByteArray overload keeps the media type exactly `application/json` (REQ-PROTO-001).
             .post(payload.toByteArray(Charsets.UTF_8).toRequestBody(JSON_MEDIA_TYPE))
             .build()
-        return execute(postClient, request) { status, text ->
-            when (status) {
-                200, 201 -> ApiResult.Ok(WireJson.decodeFromString(MessageDto.serializer(), text).toDomain())
-                in 400..499 -> ApiResult.Rejected(status, errorCode(status, text))
-                else -> ApiResult.NetworkFailure()
-            }
+        return when (val outcome = execute(sendClient, request)) {
+            is HttpOutcome.Completed -> ResponseClassifier.classifySend(outcome.status, outcome.body, message.id)
+            HttpOutcome.IoFailure -> ApiResult.NetworkFailure
         }
     }
 
-    override suspend fun sync(user: String, after: Long, wait: Int): ApiResult<SyncPage> {
+    override suspend fun sync(me: String, after: Long, waitSeconds: Int): ApiResult<SyncPage> {
         val url = messagesUrl.newBuilder()
             .addQueryParameter("after", after.toString())
-            .addQueryParameter("wait", wait.toString())
+            .addQueryParameter("wait", waitSeconds.toString())
             .build()
-        val request = Request.Builder().url(url).header(USER_HEADER, user).get().build()
-        return execute(getClient(wait), request) { status, text ->
-            when (status) {
-                200 -> {
-                    val dto = WireJson.decodeFromString(SyncResponseDto.serializer(), text)
-                    ApiResult.Ok(SyncPage(dto.messages.map { it.toDomain() }, dto.cursor, dto.hasMore))
+        val request = Request.Builder().url(url).header(USER_HEADER, me).get().build()
+        return when (val outcome = execute(syncClient(waitSeconds), request)) {
+            is HttpOutcome.Completed -> ResponseClassifier.classifySync(outcome.status, outcome.body)
+            HttpOutcome.IoFailure -> ApiResult.NetworkFailure
+        }
+    }
+
+    private sealed interface HttpOutcome {
+        data class Completed(val status: Int, val body: String) : HttpOutcome
+        data object IoFailure : HttpOutcome
+    }
+
+    private suspend fun execute(client: OkHttpClient, request: Request): HttpOutcome =
+        suspendCancellableCoroutine { continuation ->
+            val call = client.newCall(request)
+            continuation.invokeOnCancellation { call.cancel() }
+            call.enqueue(object : Callback {
+                override fun onFailure(call: Call, e: IOException) {
+                    if (continuation.isActive) continuation.resume(HttpOutcome.IoFailure)
                 }
-                in 400..499 -> ApiResult.Rejected(status, errorCode(status, text))
-                else -> ApiResult.NetworkFailure()
-            }
-        }
-    }
 
-    private suspend fun <T> execute(
-        client: OkHttpClient,
-        request: Request,
-        map: (status: Int, body: String) -> ApiResult<T>,
-    ): ApiResult<T> = try {
-        val (status, body) = client.newCall(request).awaitBody()
-        try {
-            map(status, body)
-        } catch (e: IllegalArgumentException) {
-            // A 2xx with an unreadable body (kotlinx SerializationException is an IllegalArgumentException).
-            ApiResult.NetworkFailure(e)
+                override fun onResponse(call: Call, response: Response) {
+                    val outcome = try {
+                        response.use { HttpOutcome.Completed(it.code, it.body?.string().orEmpty()) }
+                    } catch (e: IOException) {
+                        HttpOutcome.IoFailure
+                    }
+                    if (continuation.isActive) continuation.resume(outcome)
+                }
+            })
         }
-    } catch (e: IOException) {
-        ApiResult.NetworkFailure(e)
-    }
-
-    private fun errorCode(status: Int, body: String): String = try {
-        WireJson.decodeFromString(ErrorResponseDto.serializer(), body).error.code
-    } catch (e: IllegalArgumentException) {
-        "http_$status"
-    }
 
     companion object {
         const val USER_HEADER = "X-Chat-User"
+        const val SEND_TIMEOUT_SECONDS = 10L
         const val CONNECT_TIMEOUT_SECONDS = 10L
-        const val POST_TIMEOUT_SECONDS = 10L
+        const val TIMEOUT_MARGIN_SECONDS = 10L
         private val JSON_MEDIA_TYPE = "application/json".toMediaType()
 
-        /** REQ-CONN-006: a GET may take `wait + 10` seconds in total. */
-        fun getTimeoutSeconds(wait: Int): Long = wait + 10L
+        fun defaultClient(): OkHttpClient = OkHttpClient.Builder()
+            .connectTimeout(CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .build()
     }
-}
-
-/** Runs the call asynchronously; the body is read on OkHttp's thread. Cancellation cancels the call. */
-private suspend fun Call.awaitBody(): Pair<Int, String> = suspendCancellableCoroutine { cont ->
-    cont.invokeOnCancellation { cancel() }
-    enqueue(object : Callback {
-        override fun onFailure(call: Call, e: IOException) {
-            if (cont.isActive) cont.resumeWithException(e)
-        }
-
-        override fun onResponse(call: Call, response: Response) {
-            val result = try {
-                response.use { it.code to (it.body?.string() ?: "") }
-            } catch (e: IOException) {
-                if (cont.isActive) cont.resumeWithException(e)
-                return
-            }
-            if (cont.isActive) cont.resume(result)
-        }
-    })
 }

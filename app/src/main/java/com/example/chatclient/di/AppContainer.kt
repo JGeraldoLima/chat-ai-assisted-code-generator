@@ -3,13 +3,14 @@ package com.example.chatclient.di
 
 import android.content.Context
 import com.example.chatclient.BuildConfig
-import com.example.chatclient.data.local.AtomicFileStore
-import com.example.chatclient.data.local.PersistedIdentity
-import com.example.chatclient.data.local.PersistedMessageState
+import com.example.chatclient.data.local.AtomicFileValue
+import com.example.chatclient.data.local.MessageEntity
 import com.example.chatclient.data.remote.OkHttpChatApi
 import com.example.chatclient.data.repository.IdentityRepositoryImpl
 import com.example.chatclient.data.repository.MessageRepositoryImpl
+import com.example.chatclient.data.sync.NetworkWakeSource
 import com.example.chatclient.data.sync.SyncEngine
+import com.example.chatclient.data.sync.bindEngineToIdentity
 import com.example.chatclient.domain.repository.IdentityRepository
 import com.example.chatclient.domain.repository.MessageRepository
 import com.example.chatclient.domain.repository.SyncController
@@ -21,34 +22,53 @@ import com.example.chatclient.domain.usecase.SendMessageUseCase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.builtins.serializer
+import kotlinx.serialization.json.Json
 import java.io.File
-import java.time.Clock
 
-/** Manual constructor injection, built once in [com.example.chatclient.ChatApplication]. */
+/**
+ * Manual constructor injection, built once in ChatApplication. Persisted state is loaded (and
+ * repaired, REQ-PERSIST-003) here, before any UI observes it and before the engine starts.
+ */
 class AppContainer(context: Context) {
-    /** Application-scoped; outlives every Activity. */
-    val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val appContext = context.applicationContext
+    private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val storageDir = File(appContext.filesDir, STORAGE_DIR)
+    private val storageJson = Json { ignoreUnknownKeys = true }
 
-    private val clock: Clock = Clock.systemUTC()
+    val identityRepository: IdentityRepository = IdentityRepositoryImpl(
+        AtomicFileValue(File(storageDir, "identity.json"), String.serializer(), storageJson),
+    )
 
-    private val storeDir = File(context.filesDir, "chatgen")
+    val messageRepository: MessageRepository = MessageRepositoryImpl(
+        messagesValue = AtomicFileValue(
+            File(storageDir, "messages.json"),
+            ListSerializer(MessageEntity.serializer()),
+            storageJson,
+        ),
+        outboxValue = AtomicFileValue(File(storageDir, "outbox.json"), ListSerializer(String.serializer()), storageJson),
+        cursorValue = AtomicFileValue(File(storageDir, "cursor.json"), Long.serializer(), storageJson),
+    )
 
-    val identityRepository: IdentityRepository =
-        IdentityRepositoryImpl(AtomicFileStore(File(storeDir, "identity.json"), PersistedIdentity.serializer()))
-
-    val messageRepository: MessageRepository =
-        MessageRepositoryImpl(AtomicFileStore(File(storeDir, "messages.json"), PersistedMessageState.serializer()))
-
-    val syncController: SyncController =
-        SyncEngine(OkHttpChatApi(BuildConfig.CHATGEN_SERVER_URL), messageRepository, clock, Dispatchers.IO)
+    val syncController: SyncController = SyncEngine(
+        api = OkHttpChatApi(BuildConfig.CHATGEN_SERVER_URL),
+        repository = messageRepository,
+        scope = applicationScope,
+    )
 
     val loginUseCase = LoginUseCase(identityRepository)
     val logoutUseCase = LogoutUseCase(syncController, messageRepository, identityRepository)
-    val sendMessageUseCase = SendMessageUseCase(messageRepository, syncController, clock)
-    val observeConversationsUseCase = ObserveConversationsUseCase(identityRepository, messageRepository)
-    val observeThreadUseCase = ObserveThreadUseCase(identityRepository, messageRepository)
+    val sendMessageUseCase = SendMessageUseCase(identityRepository, messageRepository, syncController)
+    val observeConversationsUseCase = ObserveConversationsUseCase(messageRepository)
+    val observeThreadUseCase = ObserveThreadUseCase(messageRepository)
 
     init {
-        bindEngineToIdentity(appScope, identityRepository.identity, syncController)
+        bindEngineToIdentity(identityRepository.identity, syncController, applicationScope)
+        NetworkWakeSource(appContext, syncController).register()
+    }
+
+    private companion object {
+        const val STORAGE_DIR = "chatgen"
     }
 }

@@ -3,144 +3,140 @@ package com.example.chatclient.ui.conversations
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.example.chatclient.ui.ConnectionBar
+import com.example.chatclient.ui.ElementIds
+import com.example.chatclient.ui.UiText
 
 @Composable
 fun ConversationsScreen(
     state: ConversationsUiState,
-    onLogout: () -> Unit,
     onPeerChange: (String) -> Unit,
     onOpen: () -> Unit,
-    onOpenConversation: (String) -> Unit,
+    onConversationClick: (String) -> Unit,
+    onLogout: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    Scaffold { padding ->
-        Column(
-            modifier = Modifier
-                .padding(padding)
-                .fillMaxSize(),
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Row(
+            Text(
+                text = state.me,
+                style = MaterialTheme.typography.titleLarge,
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 16.dp, end = 8.dp, top = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = state.me,
-                    style = MaterialTheme.typography.titleLarge,
-                    modifier = Modifier.testTag("me-name"),
-                )
-                Spacer(Modifier.weight(1f))
-                TextButton(onClick = onLogout, modifier = Modifier.testTag("logout")) {
-                    Text("Log out")
-                }
-            }
-            ConnectionBar(state.connection, state.queuedCount)
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                OutlinedTextField(
-                    value = state.peerInput,
-                    onValueChange = onPeerChange,
-                    placeholder = { Text("Send to (name)") },
-                    singleLine = true,
-                    modifier = Modifier
-                        .weight(1f)
-                        .testTag("new-conversation-peer"),
-                )
-                Button(onClick = onOpen, modifier = Modifier.testTag("new-conversation-open")) {
-                    Text("Open")
-                }
-            }
-            state.peerError?.let {
-                Text(
-                    text = it,
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier
-                        .padding(horizontal = 16.dp)
-                        .testTag("new-conversation-error"),
-                )
-            }
-            HorizontalDivider(Modifier.padding(top = 8.dp))
-
-            Box(
-                Modifier
                     .weight(1f)
-                    .fillMaxWidth(),
+                    .testTag(ElementIds.ME_NAME),
+            )
+            OutlinedButton(
+                onClick = onLogout,
+                modifier = Modifier.testTag(ElementIds.LOGOUT),
             ) {
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .testTag("conversation-list"),
-                ) {
-                    items(state.conversations, key = { it.peer }) { row ->
-                        ConversationRow(row, onClick = { onOpenConversation(row.peer) })
-                        HorizontalDivider()
-                    }
-                }
-                if (state.conversations.isEmpty()) {
-                    Text(
-                        text = "No conversations yet.",
-                        style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier
-                            .align(Alignment.Center)
-                            .testTag("conversations-empty"),
-                    )
-                }
+                Text(UiText.LOGOUT_LABEL)
+            }
+        }
+        ConnectionBar(state.connection, state.queuedCount)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            OutlinedTextField(
+                value = state.peerInput,
+                onValueChange = onPeerChange,
+                placeholder = { Text(UiText.NEW_CONVERSATION_PLACEHOLDER) },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
+                keyboardActions = KeyboardActions(onGo = { onOpen() }),
+                modifier = Modifier
+                    .weight(1f)
+                    .testTag(ElementIds.NEW_CONVERSATION_PEER),
+            )
+            Button(
+                onClick = onOpen,
+                modifier = Modifier.testTag(ElementIds.NEW_CONVERSATION_OPEN),
+            ) {
+                Text(UiText.NEW_CONVERSATION_OPEN_LABEL)
+            }
+        }
+        state.peerError?.let { error ->
+            Text(
+                text = error,
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.testTag(ElementIds.NEW_CONVERSATION_ERROR),
+            )
+        }
+        if (state.conversations.isEmpty()) {
+            Text(
+                text = UiText.CONVERSATIONS_EMPTY,
+                style = MaterialTheme.typography.bodyLarge,
+                modifier = Modifier.testTag(ElementIds.CONVERSATIONS_EMPTY),
+            )
+        }
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .testTag(ElementIds.CONVERSATION_LIST),
+        ) {
+            items(state.conversations, key = { it.peer }) { conversation ->
+                ConversationRow(conversation, onClick = { onConversationClick(conversation.peer) })
+                HorizontalDivider()
             }
         }
     }
 }
 
-/** Uses plain `clickable` (no merged semantics), so `conversation-peer` and `conversation-preview` stay discoverable. */
+/** A clickable row that keeps its children's tags visible: no merged semantics. */
 @Composable
-private fun ConversationRow(row: ConversationRowUi, onClick: () -> Unit) {
+private fun ConversationRow(conversation: ConversationItem, onClick: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .testTag("conversation-row")
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .testTag(ElementIds.CONVERSATION_ROW)
+            .padding(vertical = 12.dp, horizontal = 4.dp),
     ) {
         Text(
-            text = row.peer,
+            text = conversation.peer,
             style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.testTag("conversation-peer"),
+            modifier = Modifier.testTag(ElementIds.CONVERSATION_PEER),
         )
         Text(
-            text = row.preview,
+            text = conversation.preview,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.testTag("conversation-preview"),
+            modifier = Modifier.testTag(ElementIds.CONVERSATION_PREVIEW),
         )
     }
 }

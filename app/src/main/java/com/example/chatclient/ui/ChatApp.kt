@@ -2,123 +2,139 @@
 package com.example.chatclient.ui
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.chatclient.di.AppContainer
-import com.example.chatclient.domain.repository.IdentityRepository
 import com.example.chatclient.ui.conversations.ConversationsScreen
 import com.example.chatclient.ui.conversations.ConversationsViewModel
 import com.example.chatclient.ui.login.LoginScreen
 import com.example.chatclient.ui.login.LoginViewModel
 import com.example.chatclient.ui.thread.ThreadScreen
 import com.example.chatclient.ui.thread.ThreadViewModel
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.launch
 
-/** REQ-UI-001: exactly three screens. */
-sealed interface Screen {
-    data object Login : Screen
-    data object Conversations : Screen
-    data class Thread(val peer: String) : Screen
-}
-
-/** Routing derived from the identity (REQ-ID-001) plus the open thread. */
-class AppViewModel(identity: IdentityRepository) : ViewModel() {
-    private val openPeer = MutableStateFlow<String?>(null)
-
-    val screen: StateFlow<Screen> = combine(identity.identity, openPeer) { me, peer -> route(me, peer) }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, route(identity.identity.value, null))
-
-    init {
-        viewModelScope.launch {
-            identity.identity.collect { if (it == null) openPeer.value = null }
-        }
-    }
-
-    fun openThread(peer: String) {
-        openPeer.value = peer
-    }
-
-    fun closeThread() {
-        openPeer.value = null
-    }
-
-    companion object {
-        fun route(me: String?, peer: String?): Screen = when {
-            me == null -> Screen.Login
-            peer == null -> Screen.Conversations
-            else -> Screen.Thread(peer)
-        }
-
-        fun factory(container: AppContainer) = viewModelFactory {
-            initializer { AppViewModel(container.identityRepository) }
-        }
-    }
-}
-
+/** Top-level routing between the three screens (REQ-UI-001). No navigation library. */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun ChatApp(container: AppContainer) {
-    val app: AppViewModel = viewModel(factory = AppViewModel.factory(container))
-    val screen by app.screen.collectAsStateWithLifecycle()
+    val appViewModel: AppViewModel = viewModel(
+        factory = viewModelFactory { initializer { AppViewModel(container.identityRepository) } },
+    )
+    val app by appViewModel.uiState.collectAsStateWithLifecycle()
 
-    // Element IDs are Compose test tags, exposed to UI Automator as resource-ids.
-    Box(
-        Modifier
+    Scaffold(
+        modifier = Modifier
             .fillMaxSize()
             .semantics { testTagsAsResourceId = true },
-    ) {
-        when (val current = screen) {
-            Screen.Login -> {
-                val vm: LoginViewModel = viewModel(factory = LoginViewModel.factory(container))
-                val state by vm.state.collectAsStateWithLifecycle()
-                LoginScreen(state = state, onNameChange = vm::onNameChange, onSubmit = vm::onSubmit)
+    ) { innerPadding ->
+        val contentModifier = Modifier
+            .padding(innerPadding)
+            .consumeWindowInsets(innerPadding)
+            .imePadding()
+        val me = app.me
+        when (val screen = app.screen) {
+            Screen.Login -> LoginRoute(container, app.session, contentModifier)
+            Screen.Conversations -> if (me != null) {
+                ConversationsRoute(container, me, app.session, appViewModel, contentModifier)
             }
-
-            Screen.Conversations -> {
-                val vm: ConversationsViewModel = viewModel(factory = ConversationsViewModel.factory(container))
-                val state by vm.state.collectAsStateWithLifecycle()
-                ConversationsScreen(
-                    state = state,
-                    onLogout = vm::onLogout,
-                    onPeerChange = vm::onPeerChange,
-                    onOpen = { vm.onOpen()?.let(app::openThread) },
-                    onOpenConversation = app::openThread,
-                )
-            }
-
-            is Screen.Thread -> {
-                val vm: ThreadViewModel = viewModel(factory = ThreadViewModel.factory(container))
-                val state by vm.state.collectAsStateWithLifecycle()
-                LaunchedEffect(current.peer) { vm.open(current.peer) }
-                BackHandler { app.closeThread() }
-                // Render only once the view model shows this peer, so a previous thread never flashes.
-                if (state.peer == current.peer) {
-                    ThreadScreen(
-                        state = state,
-                        onBack = app::closeThread,
-                        onInputChange = vm::onInputChange,
-                        onSend = vm::onSend,
-                    )
-                }
+            is Screen.Thread -> if (me != null) {
+                BackHandler(onBack = appViewModel::back)
+                ThreadRoute(container, me, screen.peer, app.session, appViewModel, contentModifier)
             }
         }
     }
+}
+
+@Composable
+private fun LoginRoute(container: AppContainer, session: Int, modifier: Modifier) {
+    val viewModel: LoginViewModel = viewModel(
+        key = "login-$session",
+        factory = viewModelFactory { initializer { LoginViewModel(container.loginUseCase) } },
+    )
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+    LoginScreen(
+        state = state,
+        onNameChange = viewModel::onNameChange,
+        onSubmit = viewModel::onSubmit,
+        modifier = modifier,
+    )
+}
+
+@Composable
+private fun ConversationsRoute(
+    container: AppContainer,
+    me: String,
+    session: Int,
+    appViewModel: AppViewModel,
+    modifier: Modifier,
+) {
+    val viewModel: ConversationsViewModel = viewModel(
+        key = "conversations-$session",
+        factory = viewModelFactory {
+            initializer {
+                ConversationsViewModel(
+                    me = me,
+                    observeConversations = container.observeConversationsUseCase,
+                    messageRepository = container.messageRepository,
+                    syncController = container.syncController,
+                    logoutUseCase = container.logoutUseCase,
+                )
+            }
+        },
+    )
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+    ConversationsScreen(
+        state = state,
+        onPeerChange = viewModel::onPeerChange,
+        onOpen = { viewModel.onOpen()?.let(appViewModel::openThread) },
+        onConversationClick = appViewModel::openThread,
+        onLogout = viewModel::onLogout,
+        modifier = modifier,
+    )
+}
+
+@Composable
+private fun ThreadRoute(
+    container: AppContainer,
+    me: String,
+    peer: String,
+    session: Int,
+    appViewModel: AppViewModel,
+    modifier: Modifier,
+) {
+    val viewModel: ThreadViewModel = viewModel(
+        key = "thread-$session-$peer",
+        factory = viewModelFactory {
+            initializer {
+                ThreadViewModel(
+                    me = me,
+                    peer = peer,
+                    observeThread = container.observeThreadUseCase,
+                    messageRepository = container.messageRepository,
+                    syncController = container.syncController,
+                    sendMessage = container.sendMessageUseCase,
+                )
+            }
+        },
+    )
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+    ThreadScreen(
+        state = state,
+        onInputChange = viewModel::onInputChange,
+        onSend = viewModel::onSend,
+        onBack = appViewModel::back,
+        modifier = modifier,
+    )
 }

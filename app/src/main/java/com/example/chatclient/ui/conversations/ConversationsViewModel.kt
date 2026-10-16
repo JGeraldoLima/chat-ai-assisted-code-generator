@@ -3,131 +3,88 @@ package com.example.chatclient.ui.conversations
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
-import com.example.chatclient.di.AppContainer
 import com.example.chatclient.domain.model.ConnectionState
 import com.example.chatclient.domain.model.Conversation
 import com.example.chatclient.domain.model.NameRule
 import com.example.chatclient.domain.model.PeerCheck
-import com.example.chatclient.domain.repository.IdentityRepository
 import com.example.chatclient.domain.repository.MessageRepository
 import com.example.chatclient.domain.repository.SyncController
 import com.example.chatclient.domain.usecase.LogoutUseCase
 import com.example.chatclient.domain.usecase.ObserveConversationsUseCase
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.drop
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-data class ConversationRowUi(val peer: String, val preview: String)
+data class ConversationItem(
+    val peer: String,
+    /** Display body of the last message (REQ-SYNC-004). */
+    val preview: String,
+)
 
 data class ConversationsUiState(
-    val me: String = "",
-    val conversations: List<ConversationRowUi> = emptyList(),
+    val me: String,
     val connection: ConnectionState = ConnectionState.OFFLINE,
     val queuedCount: Int = 0,
+    /** REQ-ORDER-002 order. */
+    val conversations: List<ConversationItem> = emptyList(),
     val peerInput: String = "",
-    /** `new-conversation-error` text; null means the element is absent. */
+    /** `new-conversation-error`: present only after a failed attempt (REQ-UI-006). */
     val peerError: String? = null,
 )
 
-private data class NewConversationForm(val input: String = "", val error: String? = null)
-
 class ConversationsViewModel(
-    private val identity: IdentityRepository,
+    private val me: String,
     observeConversations: ObserveConversationsUseCase,
-    messages: MessageRepository,
-    sync: SyncController,
-    private val logout: LogoutUseCase,
+    messageRepository: MessageRepository,
+    syncController: SyncController,
+    private val logoutUseCase: LogoutUseCase,
 ) : ViewModel() {
-    private val form = MutableStateFlow(NewConversationForm())
-
-    val state: StateFlow<ConversationsUiState> = combine(
-        identity.identity,
-        observeConversations(),
-        messages.state.map { it.outbox.size }.distinctUntilChanged(),
-        sync.connectionState,
-        form,
-    ) { me, conversations, queued, connection, f ->
-        build(me, conversations, queued, connection, f)
-    }.stateIn(
-        viewModelScope,
-        SharingStarted.Eagerly,
-        build(
-            me = identity.identity.value,
-            conversations = identity.identity.value?.let {
-                ObserveConversationsUseCase.conversations(messages.state.value.messages.values, it)
-            }.orEmpty(),
-            queued = messages.state.value.outbox.size,
-            connection = sync.connectionState.value,
-            f = form.value,
+    private val _uiState = MutableStateFlow(
+        ConversationsUiState(
+            me = me,
+            connection = syncController.connectionState.value,
+            queuedCount = messageRepository.outbox.value.size,
+            conversations = observeConversations.current(me).map(::toItem),
         ),
     )
+    val uiState: StateFlow<ConversationsUiState> = _uiState.asStateFlow()
 
     init {
-        // A new session starts with a clean form.
-        viewModelScope.launch { identity.identity.drop(1).collect { form.value = NewConversationForm() } }
+        // REQ-UI-003 / REQ-UI-005: every change is reflected without user action.
+        viewModelScope.launch {
+            observeConversations(me).collect { list -> _uiState.update { it.copy(conversations = list.map(::toItem)) } }
+        }
+        viewModelScope.launch {
+            syncController.connectionState.collect { state -> _uiState.update { it.copy(connection = state) } }
+        }
+        viewModelScope.launch {
+            messageRepository.outbox.collect { outbox -> _uiState.update { it.copy(queuedCount = outbox.size) } }
+        }
     }
 
-    fun onPeerChange(value: String) = form.update { it.copy(input = value) }
+    fun onPeerChange(text: String) {
+        _uiState.update { it.copy(peerInput = text) }
+    }
 
-    /** REQ-UI-006. Returns the normalized peer to open, or null if the input was rejected. */
-    fun onOpen(): String? {
-        val me = identity.identity.value ?: return null
-        return when (val check = NameRule.checkPeer(form.value.input, me)) {
-            PeerCheck.Invalid -> {
-                form.update { it.copy(error = NameRule.INVALID_MESSAGE) }
-                null
-            }
-            PeerCheck.Self -> {
-                form.update { it.copy(error = NameRule.SELF_MESSAGE) }
-                null
-            }
-            is PeerCheck.Valid -> {
-                form.value = NewConversationForm()
-                check.peer
-            }
+    /** REQ-UI-006: returns the normalized peer to open, or null after showing the error. */
+    fun onOpen(): String? = when (val check = NameRule.checkPeer(_uiState.value.peerInput, me)) {
+        is PeerCheck.Invalid -> {
+            _uiState.update { it.copy(peerError = check.message) }
+            null
+        }
+        is PeerCheck.Valid -> {
+            _uiState.update { it.copy(peerInput = "", peerError = null) }
+            check.peer
         }
     }
 
     /** REQ-ID-004: no confirmation prompt. */
     fun onLogout() {
-        viewModelScope.launch { logout() }
+        viewModelScope.launch { logoutUseCase() }
     }
 
-    private fun build(
-        me: String?,
-        conversations: List<Conversation>,
-        queued: Int,
-        connection: ConnectionState,
-        f: NewConversationForm,
-    ) = ConversationsUiState(
-        me = me.orEmpty(),
-        conversations = conversations.map { ConversationRowUi(it.peer, it.lastMessage.displayBody) },
-        connection = connection,
-        queuedCount = queued,
-        peerInput = f.input,
-        peerError = f.error,
-    )
-
-    companion object {
-        fun factory(container: AppContainer) = viewModelFactory {
-            initializer {
-                ConversationsViewModel(
-                    container.identityRepository,
-                    container.observeConversationsUseCase,
-                    container.messageRepository,
-                    container.syncController,
-                    container.logoutUseCase,
-                )
-            }
-        }
-    }
+    private fun toItem(conversation: Conversation) =
+        ConversationItem(conversation.peer, conversation.lastMessage.displayBody)
 }

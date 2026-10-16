@@ -3,10 +3,6 @@ package com.example.chatclient.ui.login
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
-import com.example.chatclient.di.AppContainer
-import com.example.chatclient.domain.model.NameRule
 import com.example.chatclient.domain.usecase.LoginResult
 import com.example.chatclient.domain.usecase.LoginUseCase
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -17,30 +13,26 @@ import kotlinx.coroutines.launch
 
 data class LoginUiState(
     val name: String = "",
-    /** `login-error` text; null means the element is absent. */
+    /** `login-error`: present only after a failed attempt (REQ-ID-002). */
     val error: String? = null,
 )
 
-class LoginViewModel(private val login: LoginUseCase) : ViewModel() {
-    private val _state = MutableStateFlow(LoginUiState())
-    val state: StateFlow<LoginUiState> = _state.asStateFlow()
+/** Navigation to Conversations follows from the persisted identity (AppViewModel). */
+class LoginViewModel(private val loginUseCase: LoginUseCase) : ViewModel() {
+    private val _uiState = MutableStateFlow(LoginUiState())
+    val uiState: StateFlow<LoginUiState> = _uiState.asStateFlow()
 
-    fun onNameChange(name: String) = _state.update { it.copy(name = name) }
-
-    /** REQ-ID-002 / REQ-ID-003. On success the form is reset, so `login-name` is empty after a later logout. */
-    fun onSubmit() {
-        val raw = _state.value.name
-        viewModelScope.launch {
-            when (login(raw)) {
-                LoginResult.Invalid -> _state.update { it.copy(error = NameRule.INVALID_MESSAGE) }
-                is LoginResult.Success -> _state.value = LoginUiState()
-            }
-        }
+    fun onNameChange(name: String) {
+        _uiState.update { it.copy(name = name) }
     }
 
-    companion object {
-        fun factory(container: AppContainer) = viewModelFactory {
-            initializer { LoginViewModel(container.loginUseCase) }
+    fun onSubmit() {
+        val raw = _uiState.value.name
+        viewModelScope.launch {
+            when (val result = loginUseCase(raw)) {
+                is LoginResult.Invalid -> _uiState.update { it.copy(error = result.message) }
+                is LoginResult.Success -> _uiState.value = LoginUiState()
+            }
         }
     }
 }

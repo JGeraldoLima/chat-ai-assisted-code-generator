@@ -3,113 +3,96 @@ package com.example.chatclient.data.sync
 
 import com.example.chatclient.data.remote.ApiResult
 import com.example.chatclient.data.remote.ChatApi
-import com.example.chatclient.data.remote.SyncPage
 import com.example.chatclient.domain.model.ConnectionState
+import com.example.chatclient.domain.model.MessageStatus
+import com.example.chatclient.domain.model.SyncPage
 import com.example.chatclient.domain.repository.MessageRepository
 import com.example.chatclient.domain.repository.SyncController
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.selects.select
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
 import java.time.Clock
 
 /**
- * The single sync engine (spec/core/40-connectivity.md). It is one sequential loop that implements
- * the normative engine cycle literally:
+ * The single sync engine: the normative cycle of spec 40-connectivity, run as one coroutine.
  *
- * - Phase A flushes the outbox head first, one POST at a time (REQ-OUTBOX-*).
- * - Phase B issues one sync request: a probe (`wait=0`) on the first sync of a run, after a failure,
- *   or after `hasMore`; otherwise a 25 s long-poll (REQ-SYNC-001). The long-poll races against
- *   [wake]; when wake wins, the request is cancelled and **not awaited** (REQ-CONN-005).
- * - A failed request marks `offline` and sleeps `BACKOFF[min(failures, 3)]`, interruptible by wake.
- *
- * Wake is a conflated channel. Pending wakes are dropped at the start of each cycle, because that
- * cycle's flush and sync observe everything persisted before it began.
+ * The CONFLATED [wake] channel is the pending-wake flag of REQ-CONN-009: `tryReceive()` at the start
+ * of a cycle clears it, a pending wake skips the Phase B request, and a backoff wait is
+ * `withTimeoutOrNull(d) { wake.receive() }`, which returns at once if a wake is pending.
  */
 class SyncEngine(
     private val api: ChatApi,
-    private val messages: MessageRepository,
+    private val repository: MessageRepository,
+    private val scope: CoroutineScope,
+    private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
     /**
-     * Wall clock, injected per the platform profile. The cycle itself never reads it: every wait
-     * (backoff, long-poll race) is a coroutine delay on [dispatcher], so tests drive it with virtual time.
+     * Required by the platform profile's constructor contract. All waits and timeouts of the cycle
+     * run on the coroutine clock of [dispatcher] (virtual time in tests), so nothing reads it today.
      */
-    val clock: Clock,
-    dispatcher: CoroutineDispatcher,
+    @Suppress("unused") private val clock: Clock = Clock.systemUTC(),
 ) : SyncController {
-    private val scope = CoroutineScope(SupervisorJob() + dispatcher)
-    private val wakeSignal = Channel<Unit>(Channel.CONFLATED)
+    private val wake = Channel<Unit>(Channel.CONFLATED)
+    private val lifecycle = Mutex()
+    private var job: Job? = null
+
     private val _connectionState = MutableStateFlow(ConnectionState.OFFLINE)
     override val connectionState: StateFlow<ConnectionState> = _connectionState.asStateFlow()
 
-    private val lock = Any()
-    private var runJob: Job? = null
-    private var runUser: String? = null
-
-    override fun start(me: String) {
-        synchronized(lock) {
-            if (runUser == me && runJob?.isActive == true) return
-            val previous = runJob
-            runUser = me
-            runJob = scope.launch {
-                previous?.cancelAndJoin()
-                _connectionState.value = ConnectionState.OFFLINE
-                run(me)
-            }
-        }
+    override suspend fun start(me: String) = lifecycle.withLock {
+        job?.cancelAndJoin()
+        _connectionState.value = ConnectionState.OFFLINE
+        job = scope.launch(dispatcher) { run(me) }
     }
 
-    override suspend fun stop() {
-        val job = synchronized(lock) {
-            val current = runJob
-            runJob = null
-            runUser = null
-            current
-        }
+    override suspend fun stop() = lifecycle.withLock {
         job?.cancelAndJoin()
+        job = null
         _connectionState.value = ConnectionState.OFFLINE
     }
 
     override fun wake() {
-        wakeSignal.trySend(Unit)
+        wake.trySend(Unit)
     }
 
-    private fun markOnline() {
-        _connectionState.value = ConnectionState.ONLINE
+    private sealed interface SyncOutcome {
+        data class Completed(val result: ApiResult<SyncPage>) : SyncOutcome
+        data object AbortedByWake : SyncOutcome
     }
 
-    private fun markOffline() {
-        _connectionState.value = ConnectionState.OFFLINE
-    }
-
-    /** One engine run (REQ-CONN-007). Sync requests are children of this scope, so stopping cancels them. */
-    private suspend fun run(me: String): Unit = coroutineScope {
+    private suspend fun run(me: String) {
         var failures = 0
         var probe = true // REQ-SYNC-001: the first sync of a run is a probe
         var hasMore = false
 
         while (true) {
-            wakeSignal.tryReceive()
-
+            wake.tryReceive() // each cycle consumes any pending wake
             var failed = false
 
-            // Phase A: flush (REQ-OUTBOX-001..004). Always the current head, one request at a time.
+            // Phase A: flush the outbox, head first, one request at a time (REQ-OUTBOX-001).
             while (true) {
-                val head = messages.state.value.outboxHead ?: break
-                when (val r = guarded { api.send(me, head) }) {
-                    is ApiResult.Ok -> messages.acknowledge(r.value)
-                    is ApiResult.Rejected -> messages.reject(head.id, r.code)
-                    is ApiResult.NetworkFailure -> {
+                val headId = repository.outbox.value.firstOrNull() ?: break
+                val head = repository.messages.value[headId]
+                if (head == null || head.status != MessageStatus.QUEUED) {
+                    repository.dropFromOutbox(headId)
+                    continue
+                }
+                when (val result = bounded(SEND_TIMEOUT_MILLIS) { api.send(me, head) }) {
+                    is ApiResult.Ok -> repository.applyAcknowledgement(result.value, me)
+                    is ApiResult.Rejected -> repository.applyRejection(head.id, result.code)
+                    ApiResult.NetworkFailure -> {
                         failed = true
                         break
                     }
@@ -119,53 +102,67 @@ class SyncEngine(
             }
 
             if (!failed) {
-                // Phase B: one sync request (REQ-SYNC-001..003).
-                val wait = if (probe || hasMore) 0 else LONG_POLL_SECONDS
-                val after = messages.state.value.cursor
-                val poll = async { guarded { api.sync(me, after, wait) } }
-                val result = select<ApiResult<SyncPage>?> {
-                    poll.onAwait { it }
-                    wakeSignal.onReceive { null }
+                // Phase B: one sync request, unless a wake arrived during Phase A (REQ-CONN-009).
+                if (wake.tryReceive().isSuccess) continue
+                val waitSeconds = if (probe || hasMore) 0 else LONG_POLL_SECONDS
+                val timeout = (waitSeconds + TIMEOUT_MARGIN_SECONDS) * MILLIS_PER_SECOND
+                val after = repository.cursor.value
+                // The request is not a child of this loop: aborting it (by wake or stop) only cancels it
+                // and never waits for it to settle (REQ-CONN-005). Its late result is discarded.
+                val request = scope.async(dispatcher) { bounded(timeout) { api.sync(me, after, waitSeconds) } }
+                val outcome = try {
+                    select<SyncOutcome> {
+                        request.onAwait { SyncOutcome.Completed(it) }
+                        wake.onReceive { SyncOutcome.AbortedByWake }
+                    }
+                } finally {
+                    request.cancel()
                 }
-                if (result == null) {
-                    // Aborted by wake: not a failure, state unchanged, a late response is discarded.
-                    poll.cancel()
-                    continue
+                when (outcome) {
+                    // REQ-CONN-005: an abort is not a failure; state, probe and hasMore are unchanged.
+                    SyncOutcome.AbortedByWake -> continue
+                    is SyncOutcome.Completed -> when (val result = outcome.result) {
+                        is ApiResult.Ok -> {
+                            // REQ-SYNC-003: merged messages and cursor are persisted before the next request.
+                            repository.applySync(result.value, me)
+                            hasMore = result.value.hasMore
+                            probe = false
+                            markOnline()
+                            failures = 0
+                            continue
+                        }
+                        else -> failed = true
+                    }
                 }
-                if (result is ApiResult.Ok) {
-                    messages.merge(result.value.messages, result.value.cursor, me)
-                    hasMore = result.value.hasMore
-                    probe = false
-                    markOnline()
-                    failures = 0
-                    continue
-                }
-                // Network error, timeout, 5xx or any non-200 sync response (REQ-CONN-003).
             }
 
-            // FAILED
-            markOffline()
+            // FAILED (REQ-CONN-003)
+            _connectionState.value = ConnectionState.OFFLINE
             probe = true
-            withTimeoutOrNull(BACKOFF_MILLIS[minOf(failures, BACKOFF_MILLIS.lastIndex)]) {
-                wakeSignal.receive()
-            }
+            withTimeoutOrNull(BACKOFF_MILLIS[minOf(failures, BACKOFF_MILLIS.lastIndex)]) { wake.receive() }
             failures += 1
         }
     }
 
-    /** Never throws (except cancellation), so a misbehaving call can't take the engine down with it. */
-    private suspend fun <T> guarded(call: suspend () -> ApiResult<T>): ApiResult<T> = try {
-        call()
-    } catch (e: CancellationException) {
-        throw e
-    } catch (e: Exception) {
-        ApiResult.NetworkFailure(e)
+    private fun markOnline() {
+        _connectionState.value = ConnectionState.ONLINE
     }
+
+    /** REQ-CONN-006 total-time bound; a timeout or an unexpected exception is a failure. */
+    private suspend fun <T> bounded(timeoutMillis: Long, request: suspend () -> ApiResult<T>): ApiResult<T> =
+        try {
+            withTimeoutOrNull(timeoutMillis) { request() } ?: ApiResult.NetworkFailure
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            ApiResult.NetworkFailure
+        }
 
     companion object {
         const val LONG_POLL_SECONDS = 25
-
-        /** REQ-CONN-003: 1 s, 2 s, 4 s, 8 s, 8 s, … */
-        val BACKOFF_MILLIS = longArrayOf(1_000, 2_000, 4_000, 8_000)
+        const val TIMEOUT_MARGIN_SECONDS = 10
+        const val SEND_TIMEOUT_MILLIS = 10_000L
+        private const val MILLIS_PER_SECOND = 1_000L
+        val BACKOFF_MILLIS: List<Long> = listOf(1_000L, 2_000L, 4_000L, 8_000L)
     }
 }
