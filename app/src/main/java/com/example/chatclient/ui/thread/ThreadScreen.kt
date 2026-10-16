@@ -85,15 +85,8 @@ fun ThreadScreen(
                 .fillMaxWidth()
                 .weight(1f),
         ) {
-            if (state.messages.isEmpty()) {
-                Text(
-                    text = UiText.THREAD_EMPTY,
-                    style = MaterialTheme.typography.bodyLarge,
-                    modifier = Modifier
-                        .align(Alignment.Center)
-                        .testTag(ElementIds.THREAD_EMPTY),
-                )
-            }
+            // The list stays composed even when empty; the empty-state text comes after it so it is
+            // drawn on top and stays in the automation tree (50-ui element rules).
             LazyColumn(
                 state = listState,
                 verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -104,6 +97,15 @@ fun ThreadScreen(
                 items(state.messages, key = { it.id }) { message ->
                     MessageRow(message)
                 }
+            }
+            if (state.messages.isEmpty()) {
+                Text(
+                    text = UiText.THREAD_EMPTY,
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .testTag(ElementIds.THREAD_EMPTY),
+                )
             }
         }
         state.error?.let { error ->

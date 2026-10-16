@@ -3,6 +3,7 @@ package com.example.chatclient.ui.conversations
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -94,22 +95,31 @@ fun ConversationsScreen(
                 modifier = Modifier.testTag(ElementIds.NEW_CONVERSATION_ERROR),
             )
         }
-        if (state.conversations.isEmpty()) {
-            Text(
-                text = UiText.CONVERSATIONS_EMPTY,
-                style = MaterialTheme.typography.bodyLarge,
-                modifier = Modifier.testTag(ElementIds.CONVERSATIONS_EMPTY),
-            )
-        }
-        LazyColumn(
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(1f)
-                .testTag(ElementIds.CONVERSATION_LIST),
+                .weight(1f),
         ) {
-            items(state.conversations, key = { it.peer }) { conversation ->
-                ConversationRow(conversation, onClick = { onConversationClick(conversation.peer) })
-                HorizontalDivider()
+            // The list stays composed even when empty; the empty-state text comes after it so it is
+            // drawn on top and stays in the automation tree (50-ui element rules).
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .testTag(ElementIds.CONVERSATION_LIST),
+            ) {
+                items(state.conversations, key = { it.peer }) { conversation ->
+                    ConversationRow(conversation, onClick = { onConversationClick(conversation.peer) })
+                    HorizontalDivider()
+                }
+            }
+            if (state.conversations.isEmpty()) {
+                Text(
+                    text = UiText.CONVERSATIONS_EMPTY,
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .testTag(ElementIds.CONVERSATIONS_EMPTY),
+                )
             }
         }
     }

@@ -6,14 +6,14 @@
 | Field | Value |
 |---|---|
 | Regeneration boundary | `app/src/main/java/com/example/chatclient/`, `app/src/test/`, `app/src/androidTest/` minus `app/src/main/java/com/example/chatclient/ui/theme/` |
-| Spec version / hash | 1.1.0 / `3db663d27b07` |
+| Spec version / hash | 1.1.0 / `29b795f02f37` |
 | Spec files | 17 (see `spec/manifest.yaml`) |
-| Harness | chatgen-harness 1.0.0 @ root `cf83999` |
-| Scaffold commit | `9bb85e8` |
+| Harness | chatgen-harness 1.0.0 @ root `e9d89ec` |
+| Scaffold commit | `78a1db5` |
 | Agent | Claude Code, model `claude-opus-5-5`, effort `high` |
 | Repair attempts | 0 |
-| Review | violations=0 unclear=1 ok=51 |
+| Review | violations=0 unclear=2 ok=68 |
 | Gates (last run) | boundary ✅ · traceability ✅ · build ✅ · unit-tests ✅ |
-| Generated at | 2026-10-16T04:35:09.468Z |
+| Generated at | 2026-10-16T05:43:21.568Z |
 
 To regenerate: `node harness/regen.mjs android` from the repo root (see root README).
