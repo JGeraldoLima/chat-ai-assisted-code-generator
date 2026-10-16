@@ -18,10 +18,13 @@ No protocol change: the server already behaved as specified here.
 | A6 / android 5: Unicode White_Space vs. platform `trim()` | Whitespace is now a fixed 25-code-point set in the glossary (equal to ECMAScript `trim()`, which the server already uses). Web keeps `trim()`. Android uses an explicit set instead of Kotlin `trim()`/`isBlank()`. | Glossary, **REQ-ID-006**, **REQ-SEND-005** (new), body rule in 20-protocol |
 | A7 / android 4: wake during a probe; wake while nothing is interruptible | Wake aborts any Phase B request. A wake during Phase A is latched and makes the engine skip the Phase B request (or the next backoff sleep) and start a new cycle. | REQ-CONN-005 (amended), **REQ-CONN-009** (new), pseudocode |
 | A8: cross-key atomicity, "queued ⇔ in outbox" | Atomicity is per value. The write order is store, outbox, cursor. A specified load-time repair restores the invariant. | REQ-PERSIST-001 (amended), **REQ-PERSIST-002**, **REQ-PERSIST-003** (new) |
+| E2E on the regenerated android client: `thread-empty` visible on screen but missing from the UI Automator tree (the `Text` sat under a `fillMaxSize()` list, and Compose drops fully covered nodes) | A shown element must be in the automation tree. The empty-state text is drawn on top of its (still composed) empty list. | 50-ui element rules, android profile (empty states) |
 | android 6: `Modifier.clickable` on `conversation-row` | Recorded in the Android profile as verified by the `conversation-order` scenario on the emulator. | android profile |
 
-Not addressed in 1.1 (no reviewer marked it unclear; recorded as observations): behavior when a
-persistent write itself fails (disk full, `QuotaExceededError`).
+Result: the clients regenerated from 1.1 were accepted with web `unclear` 6 → 1 and android 2 → 1,
+both with 0 violations. The remaining items are new, narrower gaps, queued for 1.2 in `FUTURE.md`
+(id collision with a non-`failed` local message, logout deletion order). Also not addressed: what happens
+when a persistent write itself fails (disk full, `QuotaExceededError`).
 
 ## 1.0.0 (2026-10-15)
 

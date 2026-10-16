@@ -22,15 +22,15 @@ What I'd do next with more time, roughly in priority order.
 
 ## Spec / protocol
 
-0. **Spec v1.1 from the reviewers' findings.** Resolve the "unclear" items in `webclient/CONFORMANCE.md` and
-   `client/CONFORMANCE.md`:
-   - `failed` vs the server copy after a 409;
-   - classifying other 4xx statuses on POST and GET;
-   - the REQ-SYNC-001 prose vs its pseudocode;
-   - Unicode White_Space vs platform `trim()`;
-   - the cross-key atomicity of a send.
-
-   Then regenerate both clients.
+0. **Spec v1.2 from the v1.1 reviews.** Spec v1.1 (see `spec/CHANGELOG.md`) resolved the v1.0 findings.
+   The v1.1 reviews left one "unclear" item per client, plus two observations:
+   - an id collision between a local `queued`/`sent` message and a server copy with a different `from`
+     (REQ-MSG-001 vs REQ-SYNC-002; REQ-SYNC-005 covers only `failed`), from `webclient/CONFORMANCE.md`;
+   - the deletion order on logout vs the REQ-PERSIST-002 write order (`client/CONFORMANCE.md`);
+   - REQ-SEND-001 precedence when a body is both blank and over 1000 code points;
+   - the Android profile's wording on `Modifier.clickable` vs "MUST NOT use `mergeDescendants`", and its
+     "observe the identity flow" engine-lifetime mechanism, which a reviewer considered racy.
+   Also unspecified: what happens when a persistent write itself fails (disk full, `QuotaExceededError`).
 1. **Enable `features/reactions.md`**, then attachments (a `kind: "attachment"` with an upload endpoint) and group
    conversations (`to` becomes a conversation id, with membership rules), each as a feature module with its own
    scenarios.
