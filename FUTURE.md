@@ -15,12 +15,24 @@ What I'd do next with more time, roughly in priority order.
    scenario pass rate. Treat a drop as a regression of the spec or the harness.
 4. **CI.** A pipeline that runs `test:harness`, `conformance`, the reference scenarios, and a nightly "delete +
    regenerate + full E2E matrix" on a machine with an emulator. Gate merges to `spec/` on it.
-5. **Codex parity, proven.** `regen.mjs --agent codex` exists: it drives `codex exec` with the same prompts,
-   gates and review (see the README). It has not generated a client yet. Next: run it end to end for both
-   targets, measure its cost, add a Codex estimate to `harness/targets/*.json`, and verify `--resume` on a
-   real interruption.
+5. **Codex regeneration parity — done (2026-10-16).** Clean regeneration with `regen.mjs all --agent codex`
+   completed for Android and web. Both passed their build, unit-test, boundary, traceability and conformance
+   review gates; web also passed lint. Android needed one automatic repair, web none. Both regenerated clients
+   were launched for manual testing. Follow-ups: run the full E2E matrix, record comparable usage/cost estimates,
+   and verify `--resume` on a real interruption.
 6. **Scaffold as a generated-but-reviewed layer.** Let the generator *propose* scaffold changes (a new dependency
    for a feature) as a separate patch that a human approves, instead of stopping with `## Blocked`.
+
+7. **AI IDE / coding-agent agnostic.** Generalize the agent adapter beyond Claude Code and Codex so other
+   AI IDEs and coding agents can use the same spec bundle, generation procedure, boundaries, gates and review
+   contract. Define capability checks and adapters for invocation, authentication, progress, usage and resume;
+   keep the core workflow independent of any vendor's CLI or IDE-specific skills/hooks.
+8. **Cloud deployment entry points for server and web.** Add scriptable preflight, plan, deploy and verify
+   commands that an agent can run after generation. Before generating or changing cloud resources, validate
+   IAM identity, target account/project and region, required permissions, service availability, quotas and
+   configuration viability. Report blockers and the proposed resources/cost assumptions up front. Deploy the
+   server and web client with the correct API URL, then verify health, connectivity and access. Prefer existing
+   IAM roles or short-lived credentials; make deployments repeatable and provide rollback/teardown commands.
 
 ## Spec / protocol
 
@@ -57,6 +69,12 @@ What I'd do next with more time, roughly in priority order.
 2. **Android background sync** via WorkManager when the app isn't in the foreground (out of scope here by design).
 3. **Accessibility scenarios.** Assert labels and focus order from the UI contract on both platforms.
 4. **Visual snapshots** per platform (not cross-platform). They catch unintended UI churn between regenerations.
+
+5. **More shared core use cases on Android and web.** Specify and test edge cases such as opening a chat with
+   a user who does not exist. The current name-only identity model needs a clear definition of when a user
+   exists, a server-side lookup contract, and distinct UI behavior for an unknown user versus an unavailable
+   lookup while offline. Define validation/error strings, retry behavior and when a conversation is created;
+   add shared executable scenarios and regenerate both clients from the updated spec.
 
 ## Server
 
